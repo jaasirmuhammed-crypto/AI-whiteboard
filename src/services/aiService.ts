@@ -8,8 +8,12 @@ export interface AIServiceConfig {
 }
 
 export class AIService {
+  private static getEnvApiKey(): string {
+    return (import.meta.env.VITE_GEMINI_API_KEY as string) || (import.meta.env.VITE_API_KEY as string) || '';
+  }
+
   private static config: AIServiceConfig = {
-    apiKey: localStorage.getItem('ai_gemini_api_key') || '',
+    apiKey: (import.meta.env.VITE_GEMINI_API_KEY as string) || (import.meta.env.VITE_API_KEY as string) || localStorage.getItem('ai_gemini_api_key') || '',
     model: 'gemini-1.5-flash',
   };
 
@@ -23,7 +27,11 @@ export class AIService {
   }
 
   public static getApiKey(): string {
-    return this.config.apiKey || localStorage.getItem('ai_gemini_api_key') || '';
+    return this.config.apiKey || this.getEnvApiKey() || localStorage.getItem('ai_gemini_api_key') || '';
+  }
+
+  public static isEnvApiKeyPresent(): boolean {
+    return Boolean(this.getEnvApiKey());
   }
 
   /**
