@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Whiteboard — Official Commercial Video Player & Exporter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Outfit:wght@500;700;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #030712;
+      color: #f9fafb;
+    }
+    .font-brand { font-family: 'Outfit', sans-serif; }
+    .font-mono-code { font-family: 'Space Grotesk', sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 sm:p-8">
+
+  <div class="max-w-5xl w-full space-y-6">
+    
+    <!-- Top Header -->
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <span class="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-bold uppercase tracking-wider font-mono-code">
+          🎬 Official Commercial Advertisement Video
+        </span>
+        <h1 class="text-2xl sm:text-3xl font-extrabold font-brand text-white mt-1">
+          AI Whiteboard — Product Ad Commercial
+        </h1>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button id="btnPlay" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2">
+          <span>▶ Play Commercial</span>
+        </button>
+        <button id="btnDownloadVideo" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2">
+          <span>📥 Download Video File (.webm / .mp4)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 16:9 Canvas Video Screen -->
+    <div class="relative w-full aspect-video rounded-3xl overflow-hidden bg-slate-950 shadow-2xl border border-indigo-500/30 group">
+      <canvas id="adCanvas" width="1920" height="1080" class="w-full h-full object-contain"></canvas>
+
+      <!-- Overlay Status Bar -->
+      <div class="absolute bottom-4 inset-x-4 p-4 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-slate-800 flex items-center justify-between text-xs">
+        <div class="flex items-center gap-3">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+          <span id="statusText" class="font-bold text-white font-mono-code">Ready to play / export 1080p HD video</span>
+        </div>
+        <span id="timeText" class="font-mono-code text-indigo-400 font-bold">00:00 / 00:25</span>
+      </div>
+    </div>
+
+    <div id="downloadContainer" class="hidden p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-2">
+      <p class="text-xs font-bold text-emerald-400">🎉 Video rendered successfully!</p>
+      <a id="videoDownloadLink" download="ai_whiteboard_commercial.webm" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-lg hover:bg-emerald-500 transition-colors">
+        📥 Click Here to Save Commercial Video File (.webm)
+      </a>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('adCanvas');
+    const ctx = canvas.getContext('2d');
+    const width = 1920;
+    const height = 1080;
+
+    let isPlaying = false;
+    let isRecording = false;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let startTime = 0;
+    let animId = null;
+
+    const scenes = [
+      { start: 0, end: 5, title: "SCENE 1: THE STUDY STRUGGLE", sub: "Spending Hours Formatting Handwritten Notes?", bg: "#090d16" },
+      { start: 5, end: 10, title: "SCENE 2: MEET AI WHITEBOARD", sub: "Write Naturally. Tap Once. AI Decks, Quizzes & Mind Maps.", bg: "#0f172a" },
+      { start: 10, end: 15, title: "SCENE 3: AUTOMATIC FORMULAS", sub: "Pythagorean • Calculus • Quadratic Equations Rendered Live", bg: "#1e1b4b" },
+      { start: 15, end: 20, title: "SCENE 4: GLOBAL EXAM PREP", sub: "UPSC • JEE • SAT • MCAT • NEET on iOS & Android", bg: "#022c22" },
+      { start: 20, end: 25, title: "AI WHITEBOARD", sub: "Transform Your Notes Into Smarter Study Materials.\nBuilt by SAFA Developers", bg: "#030712" }
+    ];
+
+    function drawFrame(elapsedSec) {
+      // Find current scene
+      let scene = scenes.find(s => elapsedSec >= s.start && elapsedSec <= s.end) || scenes[scenes.length - 1];
+
+      // Draw background gradient
+      const grad = ctx.createLinearGradient(0, 0, width, height);
+      grad.addColorStop(0, scene.bg);
+      grad.addColorStop(1, "#030712");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Glowing orb
+      const t = elapsedSec * 2;
+      const orbX = width / 2 + Math.sin(t) * 200;
+      const orbY = height / 2 + Math.cos(t) * 100;
+      const radGrad = ctx.createRadialGradient(orbX, orbY, 10, orbX, orbY, 600);
+      radGrad.addColorStop(0, "rgba(99, 102, 241, 0.25)");
+      radGrad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = radGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw Header Badge
+      ctx.fillStyle = "rgba(99, 102, 241, 0.15)";
+      ctx.strokeStyle = "rgba(99, 102, 241, 0.4)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(width / 2 - 220, 160, 440, 50, 25);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#a5b4fc";
+      ctx.font = "bold 22px 'Space Grotesk', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(scene.title, width / 2, 193);
+
+      // Draw Main Title Text
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 64px 'Outfit', sans-serif";
+      
+      const lines = scene.sub.split('\n');
+      if (lines.length > 1) {
+        ctx.fillText(lines[0], width / 2, 450);
+        ctx.fillStyle = "#c084fc";
+        ctx.font = "bold 36px 'Space Grotesk', sans-serif";
+        ctx.fillText(lines[1], width / 2, 530);
+      } else {
+        ctx.fillText(scene.sub, width / 2, 480);
+      }
+
+      // Draw Animated Visual Elements per scene
+      if (elapsedSec < 5) {
+        // Handwritten formula animation
+        ctx.strokeStyle = "#818cf8";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        const progress = (elapsedSec / 5) * 600;
+        ctx.arc(width / 2, 680, 80, 0, (progress / 600) * Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = "#818cf8";
+        ctx.font = "bold 32px sans-serif";
+        ctx.fillText("E = mc²   •   a² + b² = c²", width / 2, 690);
+      } else if (elapsedSec >= 5 && elapsedSec < 10) {
+        // AI Cards Showcase
+        drawCard(350, 620, "📊 PowerPoint Decks", ".pptx 6-Slide Generator");
+        drawCard(780, 620, "🎯 MCQ Quizzes", "Instant Score & Explanations");
+        drawCard(1210, 620, "🧠 Concept Mind Maps", "Visual Topic Hierarchies");
+      } else if (elapsedSec >= 10 && elapsedSec < 15) {
+        // Math formulas
+        drawFormulaBox(450, 640, "Calculus Power Rule", "d/dx [xⁿ] = n · xⁿ⁻¹");
+        drawFormulaBox(1050, 640, "Quadratic Formula", "x = (-b ± √(b²-4ac))/2a");
+      } else if (elapsedSec >= 15 && elapsedSec < 20) {
+        // Devices
+        ctx.fillStyle = "#10b981";
+        ctx.font = "bold 32px 'Space Grotesk', sans-serif";
+        ctx.fillText("📱 iOS • Android • Tablets • Desktop PWA", width / 2, 680);
+      } else {
+        // Outro Brand Badge
+        ctx.fillStyle = "#6366f1";
+        ctx.beginPath();
+        ctx.arc(width / 2, 660, 50, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 40px sans-serif";
+        ctx.fillText("✨", width / 2, 675);
+      }
+
+      // Draw Progress Line at bottom
+      ctx.fillStyle = "#312e81";
+      ctx.fillRect(100, height - 80, width - 200, 12);
+      ctx.fillStyle = "#818cf8";
+      ctx.fillRect(100, height - 80, ((width - 200) * (elapsedSec / 25)), 12);
+    }
+
+    function drawCard(x, y, title, text) {
+      ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+      ctx.strokeStyle = "rgba(129, 140, 248, 0.4)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x, y, 360, 140, 20);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 22px 'Outfit', sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(title, x + 24, y + 48);
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "16px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText(text, x + 24, y + 90);
+    }
+
+    function drawFormulaBox(x, y, title, text) {
+      ctx.fillStyle = "rgba(30, 27, 75, 0.9)";
+      ctx.strokeStyle = "rgba(192, 132, 252, 0.5)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(x, y, 420, 130, 20);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#e9d5ff";
+      ctx.font = "bold 20px 'Space Grotesk', sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(title, x + 24, y + 45);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 24px monospace";
+      ctx.fillText(text, x + 24, y + 90);
+    }
+
+    function loop() {
+      if (!isPlaying) return;
+      const now = performance.now();
+      const elapsedSec = (now - startTime) / 1000;
+
+      drawFrame(elapsedSec);
+
+      const secInt = Math.floor(elapsedSec);
+      document.getElementById('timeText').innerText = `00:${secInt < 10 ? '0' + secInt : secInt} / 00:25`;
+
+      if (elapsedSec >= 25) {
+        isPlaying = false;
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+        }
+        document.getElementById('btnPlay').innerText = '▶ Replay Commercial';
+        document.getElementById('statusText').innerText = 'Commercial finished!';
+        return;
+      }
+
+      animId = requestAnimationFrame(loop);
+    }
+
+    function playCommercial(record = false) {
+      isPlaying = true;
+      startTime = performance.now();
+
+      if (record) {
+        recordedChunks = [];
+        const stream = canvas.captureStream(60); // 60 FPS HD stream
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+        
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const link = document.getElementById('videoDownloadLink');
+          link.href = url;
+          document.getElementById('downloadContainer').classList.remove('hidden');
+          document.getElementById('statusText').innerText = '✅ Video Recorded! Download ready below.';
+        };
+
+        mediaRecorder.start();
+        document.getElementById('statusText').innerText = '🔴 Recording HD video (60 FPS)...';
+      } else {
+        document.getElementById('statusText').innerText = '▶ Playing 1080p HD Commercial...';
+      }
+
+      document.getElementById('btnPlay').innerText = '⏸ Playing...';
+      loop();
+    }
+
+    document.getElementById('btnPlay').addEventListener('click', () => {
+      if (isPlaying) {
+        isPlaying = false;
+        cancelAnimationFrame(animId);
+        document.getElementById('btnPlay').innerText = '▶ Play Commercial';
+      } else {
+        playCommercial(false);
+      }
+    });
+
+    document.getElementById('btnDownloadVideo').addEventListener('click', () => {
+      playCommercial(true);
+    });
+
+    // Draw initial static frame
+    drawFrame(0);
+  </script>
+</body>
+</html>
