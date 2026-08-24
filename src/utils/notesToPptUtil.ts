@@ -125,7 +125,7 @@ Return ONLY JSON:
             });
         });
 
-        pres.save({ fileName: `${topic}-slides.pptx` });
+        await pres.writeFile({ fileName: `${topic}-slides.pptx` });
         alert(`✅ PPT Downloaded: ${topic}-slides.pptx`);
 
     } catch (error) {

@@ -6,6 +6,8 @@ import { ToastProvider, useToast } from './components/common/Toast';
 import { ProjectProvider, useProject } from './context/ProjectContext';
 
 import { LiveWaveBackground } from './components/common/LiveWaveBackground';
+import { BrushIntroScreen } from './components/common/BrushIntroScreen';
+import { TopicsExpertiseCard } from './components/common/TopicsExpertiseCard';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 
@@ -112,6 +114,9 @@ const MainAppContent: React.FC = () => {
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
 
+  // Intro Animation State
+  const [showIntro, setShowIntro] = useState(true);
+
   // AI Generation State
   const [topicConfirmOpen, setTopicConfirmOpen] = useState(false);
   const [pendingTopic, setPendingTopic] = useState('');
@@ -188,8 +193,11 @@ const MainAppContent: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
-      {/* Live Animated Flowing Energy Wave Background with Cursor Bending */}
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 relative overflow-x-hidden">
+      {/* Live Brush Intro Animation */}
+      {showIntro && <BrushIntroScreen onComplete={() => setShowIntro(false)} />}
+
+      {/* Global Dynamic Wave Background */}
       <LiveWaveBackground />
 
       {/* Sticky Global Navigation */}
@@ -203,6 +211,17 @@ const MainAppContent: React.FC = () => {
         {currentView === 'landing' && (
           <div>
             <HeroSection onStartWriting={handleStartWriting} />
+
+            {/* AI Topics & Subject Expertise Card */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              <TopicsExpertiseCard
+                onSelectTopic={(selectedTopic) => {
+                  createProject(selectedTopic);
+                  setCurrentView('whiteboard');
+                }}
+              />
+            </div>
+
             <HowItWorksSection />
             <FeaturesSection />
             <OutputsShowcase onExploreOutput={() => handleStartWriting()} />
