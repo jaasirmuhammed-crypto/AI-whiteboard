@@ -114,7 +114,7 @@ const MainAppContent: React.FC = () => {
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
 
-  // Intro Animation State
+  // Live Brush Intro Animation State
   const [showIntro, setShowIntro] = useState(true);
 
   // AI Generation State
