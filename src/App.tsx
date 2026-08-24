@@ -43,6 +43,7 @@ import { TopicConfirmModal } from './components/ai/TopicConfirmModal';
 
 // Study Hub
 import { StudyMaterialsHub } from './components/study/StudyMaterialsHub';
+import { Exam } from './types/competitive';
 
 // Competitive Mode & Admin Components
 import { CompetitiveHubView } from './components/competitive/CompetitiveHubView';
@@ -150,7 +151,7 @@ const MainAppContent: React.FC = () => {
     setTopicConfirmOpen(true);
   };
 
-  const handleConfirmTopicAndProcess = async (confirmedTopic: string) => {
+  const handleConfirmTopicAndProcess = async (confirmedTopic: string, targetExam?: Exam | null) => {
     setTopicConfirmOpen(false);
     updateProjectTitle(confirmedTopic);
     setIsProcessing(true);
@@ -167,6 +168,7 @@ const MainAppContent: React.FC = () => {
         confirmedTopic,
         elements,
         canvasSnapshot,
+        targetExam,
         (stage, msg) => {
           setProcessingStage(stage);
           setProcessingMessage(msg);
@@ -175,7 +177,8 @@ const MainAppContent: React.FC = () => {
 
       setGeneratedMaterials(studyPackage);
       setIsProcessing(false);
-      showToast(`Study Materials Generated for "${confirmedTopic}"! 🎉`, 'success');
+      const examName = targetExam ? ` for ${targetExam.name}` : '';
+      showToast(`Study Materials Generated for "${confirmedTopic}"${examName}! 🎉`, 'success');
       setCurrentView('study_hub');
     } catch (err) {
       console.error(err);
@@ -463,6 +466,7 @@ const MainAppContent: React.FC = () => {
       <TopicConfirmModal
         isOpen={topicConfirmOpen}
         initialTopic={pendingTopic}
+        initialExamId={selectedExamId}
         onClose={() => setTopicConfirmOpen(false)}
         onConfirm={handleConfirmTopicAndProcess}
       />

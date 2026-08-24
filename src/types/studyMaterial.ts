@@ -1,4 +1,30 @@
+// Exam Target Context Definition
+export interface ExamTargetContext {
+  id: string;
+  name: string;
+  country: string;
+  category: string;
+  difficultyLevel?: string;
+  questionStyles?: string[];
+  officialPortal?: string;
+  focusSummary?: string;
+  disclaimer?: string;
+}
+
 // PPT Slide Definitions
+export type SlideFacetType = 
+  | 'overview' 
+  | 'definition' 
+  | 'mechanism' 
+  | 'tradeoffs' 
+  | 'historical_context' 
+  | 'applications' 
+  | 'problem_solution' 
+  | 'governance_policy' 
+  | 'clinical_pathology' 
+  | 'formulas_numerical' 
+  | 'exam_strategy';
+
 export interface PPTSlide {
   id: string;
   slideNumber: number;
@@ -11,6 +37,8 @@ export interface PPTSlide {
   diagramDescription?: string;
   notes?: string;
   accentColor?: string;
+  facetType?: SlideFacetType;
+  examRelevanceNote?: string;
 }
 
 export interface PresentationData {
@@ -21,10 +49,12 @@ export interface PresentationData {
   createdAt: string;
   slides: PPTSlide[];
   theme: 'modern' | 'academic' | 'creative' | 'minimal';
+  examContext?: ExamTargetContext;
 }
 
 // MCQ Question Definitions
 export type MCQDifficulty = 'easy' | 'medium' | 'hard';
+export type MCQQuestionPattern = 'single_choice' | 'assertion_reason' | 'multi_statement' | 'case_based' | 'data_sufficiency';
 
 export interface MCQQuestion {
   id: string;
@@ -34,6 +64,8 @@ export interface MCQQuestion {
   explanation: string;
   difficulty: MCQDifficulty;
   conceptTag: string;
+  pattern?: MCQQuestionPattern;
+  examPatternTag?: string;
 }
 
 export interface MCQQuizData {
@@ -42,6 +74,7 @@ export interface MCQQuizData {
   topic: string;
   createdAt: string;
   questions: MCQQuestion[];
+  examContext?: ExamTargetContext;
 }
 
 // Mind Map Definitions
@@ -52,6 +85,7 @@ export interface MindMapNode {
   category?: string;
   color?: string;
   children?: MindMapNode[];
+  examWeightage?: string; // e.g. "High Yield: 15-20% Questions"
 }
 
 export interface MindMapData {
@@ -60,6 +94,7 @@ export interface MindMapData {
   topic: string;
   createdAt: string;
   root: MindMapNode;
+  examContext?: ExamTargetContext;
 }
 
 // Overall Study Materials Package
@@ -76,4 +111,6 @@ export interface StudyMaterialsPackage {
   extractedKeywords: string[];
   isValidTopic?: boolean;
   errorMessage?: string;
+  examContext?: ExamTargetContext;
 }
+

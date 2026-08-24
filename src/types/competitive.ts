@@ -18,11 +18,25 @@ export interface Subject {
   topics: Topic[];
 }
 
+export type ExamRegion = 
+  | 'India' 
+  | 'USA' 
+  | 'UK' 
+  | 'Europe' 
+  | 'China' 
+  | 'Japan' 
+  | 'South Korea' 
+  | 'Singapore' 
+  | 'Australia' 
+  | 'Canada' 
+  | 'International';
+
 export interface Exam {
   id: string;
   name: string;
   country: string;
-  category: string; // e.g. Engineering, Civil Services, Medicine, Business, Law, Higher Education
+  region: ExamRegion;
+  category: string; // e.g. Engineering, Civil Services, Medicine, Business, Law, Higher Education, Language & Skills
   badge: string;
   description: string;
   eligibility: string;
@@ -31,6 +45,11 @@ export interface Exam {
   scoring: string;
   sections: string[];
   subjects: Subject[];
+  officialPortal?: string;
+  difficultyTier?: 'Moderate' | 'Advanced' | 'Elite' | 'Global Benchmark';
+  questionStyles?: string[];
+  examFocusDirectives?: string;
+  disclaimer?: string;
 }
 
 export interface MCQQuestion {

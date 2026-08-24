@@ -83,6 +83,8 @@ export const AdminDashboardView: React.FC = () => {
       id: 'exam_' + Date.now(),
       name: newExamName,
       country: newExamCountry,
+      region: (newExamCountry.toLowerCase().includes('india') ? 'India' : newExamCountry.toLowerCase().includes('usa') ? 'USA' : 'International') as any,
+      officialPortal: 'https://example.edu',
       category: newExamCategory,
       badge: newExamBadge,
       description: newExamDesc || 'New custom entrance examination added via Admin Portal.',

@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Network, 
   ZoomIn, 
@@ -185,6 +185,11 @@ export const MindMapViewer: React.FC<MindMapViewerProps> = ({ mindMap }) => {
                       <h4 className="text-xs font-bold text-white font-brand">
                         {branch.label}
                       </h4>
+                      {branch.examWeightage && (
+                        <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          {branch.examWeightage}
+                        </span>
+                      )}
                     </div>
 
                     {/* Leaf Children Nodes */}

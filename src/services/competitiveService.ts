@@ -56,7 +56,7 @@ export class CompetitiveService {
     return this.getExams().find((e) => e.id === id);
   }
 
-  static searchExams(query: string = '', category: string = 'All', country: string = 'All'): Exam[] {
+  static searchExams(query: string = '', category: string = 'All', country: string = 'All', region: string = 'All'): Exam[] {
     const q = query.toLowerCase().trim();
     let list = this.getExams();
 
@@ -66,12 +66,16 @@ export class CompetitiveService {
     if (country && country !== 'All') {
       list = list.filter((e) => e.country.toLowerCase() === country.toLowerCase());
     }
+    if (region && region !== 'All') {
+      list = list.filter((e) => e.region?.toLowerCase() === region.toLowerCase() || e.country.toLowerCase() === region.toLowerCase());
+    }
     if (q) {
       list = list.filter(
         (e) =>
           e.name.toLowerCase().includes(q) ||
           e.category.toLowerCase().includes(q) ||
           e.country.toLowerCase().includes(q) ||
+          (e.region && e.region.toLowerCase().includes(q)) ||
           e.description.toLowerCase().includes(q)
       );
     }

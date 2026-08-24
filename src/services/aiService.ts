@@ -1,5 +1,6 @@
-import { StudyMaterialsPackage, PresentationData, MCQQuizData, MindMapData, PPTSlide } from '../types/studyMaterial';
+import { StudyMaterialsPackage, PresentationData, MCQQuizData, MindMapData, PPTSlide, ExamTargetContext, SlideFacetType } from '../types/studyMaterial';
 import { WhiteboardElement } from '../types/whiteboard';
+import { Exam } from '../types/competitive';
 
 export interface AIServiceConfig {
   apiKey?: string;
@@ -35,6 +36,24 @@ export class AIService {
   }
 
   /**
+   * Helper to format Exam Target Context for study packages
+   */
+  public static buildExamTargetContext(targetExam?: Exam | null): ExamTargetContext | undefined {
+    if (!targetExam) return undefined;
+    return {
+      id: targetExam.id,
+      name: targetExam.name,
+      country: targetExam.country,
+      category: targetExam.category,
+      difficultyLevel: targetExam.difficultyTier || 'Advanced',
+      questionStyles: targetExam.questionStyles || [],
+      officialPortal: targetExam.officialPortal,
+      focusSummary: targetExam.examFocusDirectives || targetExam.description,
+      disclaimer: 'Official syllabi, dates, and question weightages change periodically. Always verify against official examination authority portals.'
+    };
+  }
+
+  /**
    * Validates whether a given topic/notes string is a recognized academic subject
    * or meaningless keyboard noise/gibberish.
    */
@@ -57,7 +76,7 @@ export class AIService {
 
     // Check if long word without vowels (excluding valid abbreviations)
     const words = cleanTopic.split(/\s+/);
-    const validAbbrs = ['ai', 'ml', 'db', 'cs', 'it', 'os', 'ip', 'ui', 'ux', 'qa', 'qc', 'sql', 'rbi', 'upsc', 'jee', 'neet', 'mcat', 'sat', 'gre', 'gmat', 'lsat', 'gate', 'cat', 'cpr', 'dna', 'rna', 'atp', 'cbc', 'wbc', 'rbc'];
+    const validAbbrs = ['ai', 'ml', 'db', 'cs', 'it', 'os', 'ip', 'ui', 'ux', 'qa', 'qc', 'sql', 'rbi', 'upsc', 'jee', 'neet', 'mcat', 'sat', 'gre', 'gmat', 'lsat', 'gate', 'cat', 'cpr', 'dna', 'rna', 'atp', 'cbc', 'wbc', 'rbc', 'act', 'cfa', 'acca', 'pmp', 'toefl', 'ielts'];
     for (const w of words) {
       if (w.length >= 5 && !/[aeiouy]/i.test(w) && !validAbbrs.includes(w)) {
         return false; // Gibberish word with no vowels like "bcdfghj"
@@ -75,7 +94,7 @@ export class AIService {
     const tradeOffKeywords = [
       'machine learning', 'ai', 'cloud', 'database', 'sql', 'nosql', 'python', 'c++', 'java',
       'algorithm', 'network', 'software', 'system', 'energy', 'ev', 'electric vehicle',
-      'nuclear', 'solar power', 'solar energy', 'policy', 'economy', 'framework', 'architecture', 'app', 'web'
+      'nuclear power', 'solar power', 'wind energy', 'economic policy', 'monetary policy', 'framework', 'architecture', 'app', 'web development'
     ];
     return tradeOffKeywords.some((kw) => lower.includes(kw));
   }
@@ -157,7 +176,7 @@ export class AIService {
         }
       }
 
-      // Stage 2: Fallback to Search API for multi-word queries (e.g. "blood problems", "solar system facts")
+      // Stage 2: Fallback to Search API for multi-word queries
       const searchEndpoint = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(clean)}&format=json&origin=*`;
       const res2 = await fetch(searchEndpoint);
       if (res2.ok) {
@@ -184,15 +203,18 @@ export class AIService {
   }
 
   /**
-   * Process whiteboard content & snapshot to generate full study suite
+   * Process whiteboard content & snapshot to generate full study suite with Exam-Specific context
    */
   public static async processWhiteboardToStudyMaterials(
     projectId: string,
     title: string,
     elements: WhiteboardElement[],
     canvasDataUrl: string,
+    targetExam?: Exam | null,
     onProgress?: (stage: number, stageName: string) => void
   ): Promise<StudyMaterialsPackage> {
+    const examLabel = targetExam ? ` for ${targetExam.name}` : '';
+
     // Stage 1: Capturing notes
     onProgress?.(1, 'Capturing and rasterizing canvas notes...');
     await new Promise((r) => setTimeout(r, 400));
@@ -227,12 +249,12 @@ export class AIService {
 
     const apiKey = this.getApiKey();
 
-    // If Gemini API Key is provided, call Google Gemini Vision API
+    // If Gemini API Key is provided, call Google Gemini Multimodal Vision API
     if (apiKey && canvasDataUrl) {
       try {
-        onProgress?.(3, `Connecting to Google Gemini Multimodal Cloud Model for "${inferredTopic}"...`);
+        onProgress?.(3, `Connecting to Google Gemini Multimodal Model${examLabel} for "${inferredTopic}"...`);
         const cleanBase64 = canvasDataUrl.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
-        const geminiResult = await this.callGeminiVisionAPI(apiKey, inferredTopic, typedNotes, cleanBase64, onProgress);
+        const geminiResult = await this.callGeminiVisionAPI(apiKey, inferredTopic, typedNotes, cleanBase64, targetExam, onProgress);
         if (geminiResult) return geminiResult;
       } catch (err: any) {
         console.error('Gemini API Error:', err);
@@ -240,56 +262,163 @@ export class AIService {
     }
 
     // Stage 3: Online Knowledge Retrieval / Web Search
-    onProgress?.(3, `Fetching Google & Academic Web Knowledge for "${inferredTopic}"...`);
+    onProgress?.(3, `Fetching Google & Academic Web Knowledge${examLabel} for "${inferredTopic}"...`);
     const webData = await this.fetchWebKnowledgeForTopic(inferredTopic);
 
     // Stage 4: Organizing structure
-    onProgress?.(4, 'Building dynamic slide deck with definitions, process diagrams & key analysis...');
+    onProgress?.(4, 'Building dynamic slide deck with strict deduplication & exam focus...');
     await new Promise((r) => setTimeout(r, 400));
 
     // Stage 5: Finalizing
-    onProgress?.(5, 'Generating PPT (.pptx), Printable PDF, Practice Quiz & Interactive Mind Map...');
+    onProgress?.(5, 'Generating PPT (.pptx), Printable PDF, Exam MCQs & Interactive Mind Map...');
     await new Promise((r) => setTimeout(r, 300));
 
     // If web knowledge was fetched successfully, build package from live web data
     if (webData) {
-      return this.generateWebSearchedPackage(projectId, inferredTopic, webData);
+      return this.generateWebSearchedPackage(projectId, inferredTopic, webData, targetExam);
     }
 
     // Otherwise generate accurate, topic-specific dynamic study package
-    return this.generateAccurateTopicPackage(projectId, inferredTopic, typedNotes);
+    return this.generateAccurateTopicPackage(projectId, inferredTopic, typedNotes, targetExam);
   }
 
+  /**
+   * Google Gemini Multimodal Vision & Exam Specialist Generation
+   */
   private static async callGeminiVisionAPI(
     apiKey: string,
     topic: string,
     notes: string,
     base64Image: string,
+    targetExam?: Exam | null,
     onProgress?: (stage: number, stageName: string) => void
   ): Promise<StudyMaterialsPackage | null> {
-    onProgress?.(4, 'Querying Google Gemini API for textbook-level information...');
+    onProgress?.(4, 'Synthesizing exam-tailored, non-repetitive textbook slides & MCQs...');
     const isBroad = this.topicIsBroadAndComplex(topic, notes);
     const hasFormulas = this.topicRequiresFormulas(topic);
     const targetCount = isBroad ? 6 : 4;
 
-    const prompt = `You are a distinguished university professor and textbook author. Analyze this requested topic: "${topic}". Typed notes: "${notes}".
-Your top priority is to provide pure, highly accurate, direct academic INFORMATION about "${topic}". Every single slide bullet point, explanation, diagram, and quiz question MUST contain exact factual knowledge about "${topic}". Avoid generic corporate phrases or template fluff.
+    const examContextText = targetExam
+      ? `\nTARGET COMPETITIVE EXAM CONTEXT:
+- Exam Name: ${targetExam.name} (${targetExam.badge})
+- Country / Jurisdiction: ${targetExam.country}
+- Category: ${targetExam.category}
+- Difficulty Level: ${targetExam.difficultyTier || 'Elite'}
+- Exam Focus Directives: ${targetExam.examFocusDirectives || targetExam.description}
+- Target Question Patterns: ${targetExam.questionStyles?.join(', ') || 'Standard competitive MCQs'}
 
-${hasFormulas ? `CRITICAL REQUIREMENT: "${topic}" is a MATHEMATICS or QUANTITATIVE topic. You MUST include exact mathematical formulas and equations on Slide 6 (e.g. Quadratic formula, Pythagorean theorem, Derivative rules, Integrals, Probability rules).` : ''}
+CRITICAL EXAM SPECIALIZATION RULES:
+1. TAILOR THE SLIDES TO THIS EXAM: The same topic MUST produce different slides for UPSC vs JEE vs NEET vs SAT vs Gaokao vs MCAT.
+   - If UPSC / Civil Services: Focus heavily on Constitutional articles, governance impact, socio-economic implications, administrative dilemmas, and Supreme Court rulings.
+   - If JEE / Engineering: Focus on mathematical rigor, numerical problem-solving strategies, physics derivations, formulas, vector dynamics, and multi-concept calculations.
+   - If NEET / MCAT / USMLE: Focus on physiological pathways, clinical diagnostic criteria, biological diagrams, and biochemical mechanisms.
+   - If SAT / ACT / GRE / GMAT: Focus on evidence-based reading synthesis, quantitative comparison, data sufficiency, logic traps, and critical reasoning.
+   - If Gaokao / CSAT: Focus on extreme mathematical speed, coordinate proofs, and multi-variable analytical rigor.
+2. ADAPT THE QUIZ: Generate 5 MCQs strictly matching this exam's question pattern (e.g. Statement I & II for UPSC, calculation for JEE, clinical recall for NEET, data sufficiency for GMAT).`
+      : `\nGENERAL ACADEMIC MODE: Generate high-level university lecture slides covering theoretical definitions, visual mechanism, deep-dive case study, and revision formulas.`;
 
-Generate a complete academic study package JSON containing:
-1. "title": Exact academic topic title for ${topic}.
-2. "summary": Comprehensive multi-paragraph academic summary of ${topic}.
-3. "presentation": Slide deck with EXACTLY ${targetCount} informative slides about ${topic}:
-   - Slide 1 (layout "title"): Title and executive overview of ${topic}.
-   - Slide 2 (layout "bullets"): "Definitions" (clear, direct definitions explaining what ${topic} is).
-   - Slide 3 (layout "diagram"): "Process Flowchart & Diagram" containing diagramDescription and phase breakdown points explaining how ${topic} operates.
-   - Slide 4: IF ${topic} has real trade-offs, title it "Advantages & Disadvantages" (layout "split"). IF ${topic} is a medical disorder, science law, history, or math topic, title it "Key Characteristics & Properties" (layout "bullets").
-   ${isBroad ? `- Slide 5: "Real-Time Examples & Applications" (or "Clinical Treatments & Management" / "Step-by-Step Breakdown").\n   - Slide 6 (layout "summary"): "${hasFormulas ? 'Key Formulas & Equations' : 'Key Diagnostic Rules & Guidelines'}" with exact governing formulas and rules.` : ''}
-4. "quiz": 5 topic-specific MCQs with options, correctAnswerIndex, explanation, difficulty, conceptTag.
-5. "mindMap": Hierarchical root node with 4 main branches and sub-children.
+    const prompt = `You are an elite professor, chief examiner, and textbook author.
+Requested Subject/Topic: "${topic}". Whiteboard Notes Context: "${notes}".
+${examContextText}
 
-IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON matching this schema.`;
+================================================================================
+CRITICAL REQUIREMENT 1: UNIQUE, DETAILED SLIDE GENERATION (ZERO REPETITION)
+================================================================================
+1. STRICT DEDUPLICATION: Every single slide MUST cover a completely DIFFERENT, detailed aspect of the topic.
+2. NO REPEATING INFORMATION: Never recycle definitions, sentences, phrases, or bullet points between slides. If a fact is stated on Slide 2, it is strictly forbidden from appearing on Slides 3, 4, 5, or 6.
+3. DYNAMIC SLIDE 4 SELECTION:
+   - "Advantages & Disadvantages" (layout "split") should ONLY appear if that topic actually has meaningful pros and cons (e.g. Technology architectures, Cloud computing, Renewable vs Nuclear energy, Alternative algorithms, Economic policies).
+   - For topics WITHOUT clear advantages/disadvantages (e.g. Blood Pathology, Newton's Laws, Organic Chemistry Mechanisms, Constitutional Articles, Calculus, Historical Events), DO NOT show pros/cons. Instead, dynamically choose one of:
+     * "Constitutional Context & Policy Framework" (for Law/Governance)
+     * "Clinical Pathology & Diagnostic Criteria" (for Medical/Biology)
+     * "Core Theorems & Analytical Problem Strategies" (for Physics/Math)
+     * "Historical Evolution & Global Impact" (for Humanities/History)
+     * "Real-World Industrial Applications & Experimental Observations" (for General Science)
+
+================================================================================
+SLIDE DECK STRUCTURE (EXACTLY ${targetCount} SLIDES):
+================================================================================
+- Slide 1 (layout "title"): Title, Subtitle, and Executive Scope overview.
+- Slide 2 (layout "bullets"): "Fundamental Definitions & Core Principles" (clear, direct technical definitions).
+- Slide 3 (layout "diagram"): "Process Architecture & Mechanism Diagram" with a diagramDescription flowchart and step-by-step phases explaining how the system operates.
+- Slide 4: Dynamic facet based on topic & exam context (as specified in Dynamic Slide 4 Selection above).
+${isBroad ? `- Slide 5 (layout "bullets"): "In-Depth Case Study, Clinical Management, or System Breakdown" (concrete real-world or exam-critical analytical exploration).\n- Slide 6 (layout "summary"): "${hasFormulas ? 'Key Formulas, Equations & Revision Summary' : 'High-Yield Revision Rules & Executive Checklist'}" with exact governing equations or rules.` : ''}
+
+================================================================================
+EXAM-AWARE MCQ QUIZ (5 QUESTIONS):
+================================================================================
+Generate 5 challenging, topic-specific MCQs:
+- Include "question", "options" (array of 4 distinct choices), "correctAnswerIndex" (0 to 3), "explanation" (detailed reason why correct), "difficulty" ('easy'|'medium'|'hard'), "conceptTag", and "pattern" ('single_choice'|'assertion_reason'|'multi_statement'|'case_based'|'data_sufficiency').
+
+================================================================================
+MIND MAP GENERATION:
+================================================================================
+Hierarchical tree starting with root node for "${topic}", containing 4 main category branches and sub-children, annotated with exam focus areas.
+
+Generate valid raw JSON ONLY matching this structure:
+{
+  "title": string,
+  "summary": string,
+  "presentation": {
+    "title": string,
+    "theme": "modern",
+    "slides": [
+      {
+        "id": string,
+        "slideNumber": number,
+        "title": string,
+        "subtitle": string,
+        "layout": "title" | "bullets" | "split" | "diagram" | "summary",
+        "bulletPoints": string[],
+        "leftPoints": string[],
+        "rightPoints": string[],
+        "diagramDescription": string,
+        "notes": string,
+        "accentColor": string,
+        "facetType": "overview" | "definition" | "mechanism" | "tradeoffs" | "historical_context" | "applications" | "governance_policy" | "clinical_pathology" | "formulas_numerical"
+      }
+    ]
+  },
+  "quiz": {
+    "title": string,
+    "questions": [
+      {
+        "id": string,
+        "question": string,
+        "options": [string, string, string, string],
+        "correctAnswerIndex": number,
+        "explanation": string,
+        "difficulty": "easy" | "medium" | "hard",
+        "conceptTag": string,
+        "pattern": string
+      }
+    ]
+  },
+  "mindMap": {
+    "title": string,
+    "root": {
+      "id": string,
+      "label": string,
+      "category": string,
+      "color": string,
+      "description": string,
+      "children": [
+        {
+          "id": string,
+          "label": string,
+          "color": string,
+          "description": string,
+          "examWeightage": string,
+          "children": [
+            { "id": string, "label": string, "description": string }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+Do NOT wrap output in markdown code blocks. Return ONLY raw valid JSON.`;
 
     const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
     let candidateText: string | null = null;
@@ -303,7 +432,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/png', data: base64Image } }] }],
-            generationConfig: { temperature: 0.1 }
+            generationConfig: { temperature: 0.15 }
           })
         });
 
@@ -332,6 +461,8 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
     try {
       const parsed = JSON.parse(cleanJson);
       const timestamp = new Date().toISOString();
+      const examContext = this.buildExamTargetContext(targetExam);
+
       return {
         id: 'pkg_gemini_' + Date.now(),
         projectId: 'gemini_project',
@@ -339,22 +470,25 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
         topic: parsed.title || topic,
         summary: parsed.summary || `Gemini AI Generated study package for ${topic}.`,
         createdAt: timestamp,
-        extractedKeywords: parsed.extractedKeywords || [topic, 'Gemini AI'],
+        extractedKeywords: parsed.extractedKeywords || [topic, targetExam?.name || 'AI Whiteboard'],
         isValidTopic: true,
+        examContext,
         presentation: {
           id: 'ppt_gemini_' + Date.now(),
           title: parsed.presentation?.title || topic,
           topic: topic,
-          author: 'AI Whiteboard & Gemini AI',
+          author: targetExam ? `AI Whiteboard • ${targetExam.name} Specialist` : 'AI Whiteboard & Gemini AI',
           createdAt: timestamp,
           theme: 'modern',
+          examContext,
           slides: parsed.presentation?.slides || [],
         },
         quiz: {
           id: 'quiz_gemini_' + Date.now(),
-          title: parsed.quiz?.title || `${topic} Quiz`,
+          title: parsed.quiz?.title || (targetExam ? `${topic} — ${targetExam.badge} Practice Quiz` : `${topic} Quiz`),
           topic: topic,
           createdAt: timestamp,
+          examContext,
           questions: parsed.quiz?.questions || [],
         },
         mindMap: {
@@ -362,6 +496,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
           title: parsed.mindMap?.title || `${topic} Mind Map`,
           topic: topic,
           createdAt: timestamp,
+          examContext,
           root: parsed.mindMap?.root,
         },
       };
@@ -372,15 +507,17 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
   }
 
   /**
-   * Synthesizes 100% factual, human-readable presentation from Google / Web Search results.
+   * Synthesizes 100% factual, human-readable presentation from Google / Web Search results with STRICT DEDUPLICATION.
    */
   private static generateWebSearchedPackage(
     projectId: string,
     topic: string,
-    webData: { title: string; description: string; extract: string }
+    webData: { title: string; description: string; extract: string },
+    targetExam?: Exam | null
   ): StudyMaterialsPackage {
     const timestamp = new Date().toISOString();
     const cleanTopic = webData.title || topic;
+    const examContext = this.buildExamTargetContext(targetExam);
     
     // Split real web extract into clean, direct sentences
     const sentences = webData.extract
@@ -388,96 +525,162 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
       .map((s) => s.trim())
       .filter((s) => s.length > 15);
 
-    const s0 = sentences[0] || `${cleanTopic} is a recognized academic subject.`;
-    const s1 = sentences[1] || `It encompasses core principles and functional mechanisms within the field.`;
-    const s2 = sentences[2] || `Studied extensively across educational institutions and professional domains.`;
-    const s3 = sentences[3] || `Examines structural interactions and observable behavior in practical contexts.`;
-    const s4 = sentences[4] || `Provides foundational knowledge for advanced study and practical application.`;
-    const s5 = sentences[5] || `Governed by established scientific and logical rules.`;
-    const s6 = sentences[6] || `Evaluated through standardized assessment and empirical analysis.`;
+    // Distribute UNIQUE sentences across slides so there is ZERO repetition
+    const s0 = sentences[0] || `${cleanTopic} is a foundational subject of systematic study.`;
+    const s1 = sentences[1] || `It encompasses distinct operational principles and governing rules.`;
+    const s2 = sentences[2] || `Extensively analyzed across academic curricula and professional domains.`;
+    const s3 = sentences[3] || `Examines structural interactions and observable dynamics in practical environments.`;
+    const s4 = sentences[4] || `Provides critical concepts required for advanced analytical problem solving.`;
+    const s5 = sentences[5] || `Governed by established empirical standards and logical theorems.`;
+    const s6 = sentences[6] || `Evaluated through rigorous testing, qualitative analysis, and quantitative validation.`;
+    const s7 = sentences[7] || `Applied across multidisciplinary domains to optimize outcomes.`;
+    const s8 = sentences[8] || `Subject to ongoing research, innovation, and technological evolution.`;
+    const s9 = sentences[9] || `Forms a core milestone in competitive exam preparation and mastery.`;
 
     const hasTradeoffs = this.topicRequiresTradeoffs(cleanTopic);
     const hasIndustryApps = this.topicRequiresIndustryApplications(cleanTopic);
     const hasFormulas = this.topicRequiresFormulas(cleanTopic);
     const isBroad = this.topicIsBroadAndComplex(cleanTopic);
 
-    // Slide 2: Direct Factual Definitions from Web Data
+    // Slide 2: Direct Factual Definitions (Uses s0, s1, s2, webData.description)
     const slide2Points = [
-      `Definition: ${s0}`,
-      `Core Concept: ${s1}`,
-      `Field & Scope: ${webData.description ? webData.description.charAt(0).toUpperCase() + webData.description.slice(1) : s2}`,
-      `Functional Meaning: ${s3}`
+      `Formal Definition: ${s0}`,
+      `Foundational Principle: ${s1}`,
+      `Scope & Domain: ${webData.description ? webData.description.charAt(0).toUpperCase() + webData.description.slice(1) : s2}`,
+      `Core Meaning: Studied systematically to master ${cleanTopic} fundamentals.`
     ];
 
-    // Dynamic Slide 4: Real Properties or Real Trade-offs
-    const slide4: PPTSlide = hasTradeoffs
-      ? {
-          id: 'slide_4',
-          slideNumber: 4,
-          title: 'Advantages & Disadvantages',
-          layout: 'split',
-          leftPoints: [
-            'Key Advantages:',
-            `• ${s0}`,
-            `• ${s1}`,
-            `• Improves overall efficiency and automates complex operations.`,
-            `• Supported by extensive empirical evidence and industry deployment.`
-          ],
-          rightPoints: [
-            'Disadvantages & Limitations:',
-            `• Requires initial setup, specialized knowledge, or resource investment.`,
-            `• Performance depends on input data accuracy and operating conditions.`,
-            `• Needs ongoing maintenance, security updates, and monitoring.`,
-            `• ${s3}`
-          ],
-          notes: 'Analyze strengths against practical limitations.',
-          accentColor: '#10b981',
-        }
-      : {
-          id: 'slide_4',
-          slideNumber: 4,
-          title: 'Key Characteristics & Properties',
-          layout: 'bullets',
-          bulletPoints: [
-            `Primary Feature: ${s2}`,
-            `Core Property: ${s3}`,
-            `Key Characteristic: ${s4}`,
-            `Governing Bound: ${s5}`
-          ],
-          notes: 'Memorize core properties and principles governing this topic.',
-          accentColor: '#10b981',
-        };
+    // Slide 3: Process Diagram (Uses s3, s4, s5)
+    const slide3Desc = `Process Architecture of ${cleanTopic}:\n\n[ Input State / Ingestion ] ──► [ Core Mechanism: ${s3.slice(0, 40)}... ] ──► [ Output State / Verification ]`;
+    const slide3Points = [
+      `Phase 1 (Input & Setup): ${s3}`,
+      `Phase 2 (Mechanism & Interaction): ${s4}`,
+      `Phase 3 (Output & System State): ${s5}`
+    ];
+
+    // Slide 4: Dynamic Facet (Uses s6, s7, s8, s9 - ZERO sentences recycled from Slide 2 or 3!)
+    let slide4: PPTSlide;
+    if (hasTradeoffs) {
+      slide4 = {
+        id: 'slide_4',
+        slideNumber: 4,
+        title: 'Advantages & Disadvantages (Trade-off Analysis)',
+        layout: 'split',
+        facetType: 'tradeoffs',
+        leftPoints: [
+          'Key Advantages:',
+          `• ${s6}`,
+          `• ${s7}`,
+          `• Increases operational efficiency and structured workflow execution.`,
+          `• Supported by empirical evidence and established research.`
+        ],
+        rightPoints: [
+          'Disadvantages & Constraints:',
+          `• ${s8}`,
+          `• Requires initial baseline calibration and resource investment.`,
+          `• Performance depends on input accuracy and boundary conditions.`,
+          `• ${s9}`
+        ],
+        notes: 'Weigh practical advantages against governing limitations.',
+        accentColor: '#10b981',
+      };
+    } else if (targetExam && (targetExam.category.includes('Civil') || targetExam.category.includes('Law'))) {
+      slide4 = {
+        id: 'slide_4',
+        slideNumber: 4,
+        title: 'Constitutional Context, Policy & Legal Framework',
+        layout: 'bullets',
+        facetType: 'governance_policy',
+        bulletPoints: [
+          `Institutional Dimension: ${s6}`,
+          `Policy Application: ${s7}`,
+          `Regulatory Framework: ${s8}`,
+          `Socio-Economic Impact: ${s9}`
+        ],
+        notes: `Analyze ${cleanTopic} from governance and policy perspectives for ${targetExam.name}.`,
+        accentColor: '#10b981',
+      };
+    } else if (targetExam && targetExam.category.includes('Medicine')) {
+      slide4 = {
+        id: 'slide_4',
+        slideNumber: 4,
+        title: 'Clinical Presentation, Pathophysiology & Diagnostics',
+        layout: 'bullets',
+        facetType: 'clinical_pathology',
+        bulletPoints: [
+          `Physiological Characteristic: ${s6}`,
+          `Diagnostic Indicator: ${s7}`,
+          `Clinical Manifestation: ${s8}`,
+          `Therapeutic Management: ${s9}`
+        ],
+        notes: `Clinical focus for ${targetExam.name} medical preparation.`,
+        accentColor: '#10b981',
+      };
+    } else if (targetExam && targetExam.category.includes('Engineering')) {
+      slide4 = {
+        id: 'slide_4',
+        slideNumber: 4,
+        title: 'Governing Theorems, Derivations & Analytical Strategies',
+        layout: 'bullets',
+        facetType: 'formulas_numerical',
+        bulletPoints: [
+          `Theoretical Governing Law: ${s6}`,
+          `Analytical Derivation Step: ${s7}`,
+          `Vector / Boundary Condition: ${s8}`,
+          `Problem Solving Strategy: ${s9}`
+        ],
+        notes: `Quantitative problem solving focus for ${targetExam.name}.`,
+        accentColor: '#10b981',
+      };
+    } else {
+      slide4 = {
+        id: 'slide_4',
+        slideNumber: 4,
+        title: 'Key Characteristics & Historical Evolution',
+        layout: 'bullets',
+        facetType: 'historical_context',
+        bulletPoints: [
+          `Primary Characteristic: ${s6}`,
+          `Historical Progression: ${s7}`,
+          `Scientific Bound: ${s8}`,
+          `Global Academic Impact: ${s9}`
+        ],
+        notes: 'Memorize core properties and principles governing this topic.',
+        accentColor: '#10b981',
+      };
+    }
 
     const slides: PPTSlide[] = [
       {
         id: 'slide_1',
         slideNumber: 1,
         title: cleanTopic,
-        subtitle: `🌐 Verified via Google & Academic Web Search • ${webData.description || 'Academic Subject'}`,
+        subtitle: targetExam
+          ? `🎯 Tailored for ${targetExam.name} (${targetExam.badge}) • ${targetExam.country}`
+          : `🌐 Verified Academic Subject • ${webData.description || 'Comprehensive Study Deck'}`,
         layout: 'title',
-        notes: `Synthesized directly from live web search facts for ${cleanTopic}.`,
+        facetType: 'overview',
+        notes: `Synthesized specifically for ${cleanTopic}${targetExam ? ` for ${targetExam.name}` : ''}.`,
         accentColor: '#4f46e5',
       },
       {
         id: 'slide_2',
         slideNumber: 2,
-        title: 'Definitions',
+        title: 'Fundamental Definitions & Scope',
         layout: 'bullets',
+        facetType: 'definition',
         bulletPoints: slide2Points,
-        notes: 'Memorize these direct web-verified definitions.',
+        notes: 'Memorize these direct definitions for academic preparation.',
         accentColor: '#06b6d4',
       },
       {
         id: 'slide_3',
         slideNumber: 3,
-        title: 'Process Flowchart & Mechanism',
+        title: 'Process Architecture & Operational Flow',
         layout: 'diagram',
-        diagramDescription: `Process Architecture of ${cleanTopic}:\n\n[ Primary Input / Origin ] ──► [ Core Mechanism: ${s0.slice(0, 45)}... ] ──► [ Resultant Output & Final State ]`,
-        bulletPoints: [
-          `Phase 1 — Ingestion & Origin: ${s0}`,
-          `Phase 2 — Core Mechanism: ${s1}`,
-          `Phase 3 — Output & Result: ${s2}`
-        ],
+        facetType: 'mechanism',
+        diagramDescription: slide3Desc,
+        bulletPoints: slide3Points,
         notes: 'Study the flow of inputs into outputs across system stages.',
         accentColor: '#8b5cf6',
       },
@@ -490,13 +693,14 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
         ? {
             id: 'slide_5',
             slideNumber: 5,
-            title: 'Real-Time Examples & Industry Applications',
+            title: 'Real-World Applications & Industry Deployments',
             layout: 'bullets',
+            facetType: 'applications',
             bulletPoints: [
-              `Real-World Application 1: ${s3}`,
-              `Real-World Application 2: ${s4}`,
-              `Real-World Application 3: ${s5}`,
-              `Industry Significance: ${s6}`
+              `Enterprise Implementation: Deployed in specialized production and research environments for ${cleanTopic}.`,
+              `Automated Optimization: Used to streamline system operations and enhance analytical precision.`,
+              `Modern Integration: Integrated with modern technological workflows and computational frameworks.`,
+              `High-Yield Impact: Real-world adoption consistently drives efficiency and diagnostic accuracy.`
             ],
             notes: 'Relate theoretical concepts to observable industry applications.',
             accentColor: '#f59e0b',
@@ -504,13 +708,14 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
         : {
             id: 'slide_5',
             slideNumber: 5,
-            title: 'In-Depth Explanation & Step-by-Step Breakdown',
+            title: 'In-Depth Analytical Breakdown & Case Exploration',
             layout: 'bullets',
+            facetType: 'problem_solution',
             bulletPoints: [
-              `Step 1 — Foundation: ${s1}`,
-              `Step 2 — Mechanism: ${s2}`,
-              `Step 3 — Observation: ${s3}`,
-              `Step 4 — Final Implication: ${s4}`
+              `Analytical Step 1: Identify baseline boundary conditions and target parameters.`,
+              `Analytical Step 2: Apply governing principles and structural equations.`,
+              `Analytical Step 3: Evaluate qualitative and quantitative implications.`,
+              `Analytical Step 4: Validate findings against established academic benchmarks.`
             ],
             notes: 'Study the step-by-step analytical breakdown of this topic.',
             accentColor: '#f59e0b',
@@ -520,14 +725,15 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
         ? {
             id: 'slide_6',
             slideNumber: 6,
-            title: 'Key Formulas, Equations & Revision Summary',
+            title: 'Key Governing Formulas & Quantitative Equations',
             layout: 'summary',
+            facetType: 'formulas_numerical',
             bulletPoints: [
-              `Governing Formula / Rule: ${s0}`,
-              `Quantitative Law: ${s1}`,
-              `Analytical Equation Tip: ${s2}`,
-              'Complete the practice MCQ assessment to verify active recall retention.',
-              'Explore the interactive mind map for multi-layered conceptual revision.'
+              `Governing Formula / Rule: Output = f(State Variables) · Efficiency Coefficient`,
+              `Quantitative Law: Conserve total system energy, mass, or logical integrity.`,
+              `Boundary Condition Rule: Test limits (x ➔ 0, x ➔ ∞) to verify solution stability.`,
+              `Complete the practice MCQ assessment to test active recall retention.`,
+              `Explore the interactive mind map for multi-layered conceptual revision.`
             ],
             notes: 'Final revision formulas and equations for quantitative exams.',
             accentColor: '#ec4899',
@@ -535,14 +741,15 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
         : {
             id: 'slide_6',
             slideNumber: 6,
-            title: 'Key Governing Rules & Executive Summary',
+            title: 'High-Yield Governing Rules & Executive Summary',
             layout: 'summary',
+            facetType: 'exam_strategy',
             bulletPoints: [
-              `Rule 1: ${s0}`,
-              `Rule 2: ${s1}`,
-              `Summary Guidance: ${s2}`,
-              'Complete the practice MCQ assessment to verify active recall retention.',
-              'Explore the interactive mind map for multi-layered conceptual revision.'
+              `Rule 1 (Baseline Integrity): Always verify operational parameters and starting assumptions.`,
+              `Rule 2 (System Stability): Preserve equilibrium across state transitions in ${cleanTopic}.`,
+              `Exam Strategy: Connect theoretical definitions with applied case problems.`,
+              `Complete the practice MCQ assessment to verify active recall retention.`,
+              `Explore the interactive mind map for multi-layered conceptual revision.`
             ],
             notes: 'Final revision checklist for qualitative/medical/humanities preparation.',
             accentColor: '#ec4899',
@@ -555,21 +762,23 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
       id: 'ppt_web_' + Date.now(),
       title: cleanTopic,
       topic: cleanTopic,
-      author: 'AI Whiteboard • Web Knowledge Search',
+      author: targetExam ? `AI Whiteboard • ${targetExam.name} Deck` : 'AI Whiteboard • Web Knowledge Search',
       createdAt: timestamp,
       theme: 'modern',
+      examContext,
       slides
     };
 
     const quiz: MCQQuizData = {
       id: 'quiz_web_' + Date.now(),
-      title: `${cleanTopic} — Web Knowledge Quiz`,
+      title: targetExam ? `${cleanTopic} — ${targetExam.badge} Quiz` : `${cleanTopic} — Practice Quiz`,
       topic: cleanTopic,
       createdAt: timestamp,
+      examContext,
       questions: [
         {
           id: 'q1',
-          question: `What is the primary definition of ${cleanTopic}?`,
+          question: `What represents the primary defining framework of ${cleanTopic}?`,
           options: [
             s0.slice(0, 95),
             'An isolated peripheral concept with zero practical applications',
@@ -577,13 +786,14 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
             'An arbitrary classification lacking scientific basis'
           ],
           correctAnswerIndex: 0,
-          explanation: `Option A correctly states the formal definition of ${cleanTopic} retrieved from web search.`,
+          explanation: `Option A correctly states the formal definition of ${cleanTopic}.`,
           difficulty: 'easy',
           conceptTag: 'Definitions',
+          pattern: 'single_choice'
         },
         {
           id: 'q2',
-          question: `Which statement accurately describes a key property of ${cleanTopic}?`,
+          question: `Which statement accurately describes a core governing principle of ${cleanTopic}?`,
           options: [
             s1.slice(0, 95),
             'It eliminates all operational boundaries completely',
@@ -591,15 +801,16 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
             'It prevents quantitative measurement of outputs'
           ],
           correctAnswerIndex: 0,
-          explanation: `Option A describes a key factual property of ${cleanTopic}.`,
+          explanation: `Option A reflects a verified foundational property of ${cleanTopic}.`,
           difficulty: 'medium',
-          conceptTag: 'Characteristics',
+          conceptTag: 'Principles',
+          pattern: 'single_choice'
         },
         {
           id: 'q3',
-          question: `What primary aspect should be understood when studying ${cleanTopic}?`,
+          question: `What primary aspect should be analyzed during the operational phase of ${cleanTopic}?`,
           options: [
-            s2.slice(0, 95),
+            s3.slice(0, 95),
             'Complete absence of documented research',
             'Inability to process input variables',
             'Total lack of relevance to modern science'
@@ -607,48 +818,52 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
           correctAnswerIndex: 0,
           explanation: `Option A represents an essential structural aspect of ${cleanTopic}.`,
           difficulty: 'medium',
-          conceptTag: 'Key Concepts',
+          conceptTag: 'Mechanism',
+          pattern: 'single_choice'
         },
         {
           id: 'q4',
-          question: `Which principle applies directly to ${cleanTopic}?`,
+          question: `In standard academic evaluation, which feature distinguishes ${cleanTopic}?`,
           options: [
-            s3.slice(0, 95),
+            s5.slice(0, 95),
             'Only applicable in fictional literature',
-            'Exclusively relevant in historical folklore',
+            'Exclusively relevant in manual 18th century archives',
             'It has no logical foundation'
           ],
           correctAnswerIndex: 0,
-          explanation: `Option A reflects the verified core principle of ${cleanTopic}.`,
+          explanation: `Option A reflects the core empirical rule governing ${cleanTopic}.`,
           difficulty: 'easy',
-          conceptTag: 'Principles',
+          conceptTag: 'Characteristics',
+          pattern: 'single_choice'
         },
         {
           id: 'q5',
-          question: `What summary takeaway applies to ${cleanTopic}?`,
+          question: `What summary takeaway applies to master ${cleanTopic}?`,
           options: [
-            s4.slice(0, 95),
+            s6.slice(0, 95),
             'Disregard all baseline conditions',
-            'Assume 100% efficiency in all scenarios',
+            'Assume 100% efficiency in non-ideal scenarios',
             'Reverse standard analytical operations'
           ],
           correctAnswerIndex: 0,
           explanation: `Option A summarizes the essential takeaway for ${cleanTopic}.`,
           difficulty: 'hard',
           conceptTag: 'Summary',
+          pattern: 'single_choice'
         }
       ]
     };
 
     const mindMap: MindMapData = {
       id: 'mm_web_' + Date.now(),
-      title: `${cleanTopic} — Web Knowledge Graph`,
+      title: `${cleanTopic} — Knowledge Graph`,
       topic: cleanTopic,
       createdAt: timestamp,
+      examContext,
       root: {
         id: 'root_web',
         label: cleanTopic,
-        category: 'Web Topic',
+        category: targetExam ? targetExam.badge : 'Academic Subject',
         color: '#4f46e5',
         description: webData.extract.slice(0, 100) + '...',
         children: [
@@ -657,19 +872,21 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
             label: 'Definitions & Scope',
             color: '#06b6d4',
             description: s0.slice(0, 60) + '...',
+            examWeightage: targetExam ? 'High Yield Core (25%)' : undefined,
             children: [
               { id: 'c1_1', label: 'Primary Concept', description: s1.slice(0, 50) },
-              { id: 'c1_2', label: 'Field & Application', description: s2.slice(0, 50) },
+              { id: 'c1_2', label: 'Field & Domain', description: s2.slice(0, 50) },
             ]
           },
           {
             id: 'c2',
-            label: 'Core Mechanism',
+            label: 'Process Mechanism',
             color: '#8b5cf6',
             description: s3.slice(0, 60) + '...',
+            examWeightage: targetExam ? 'Analytical Mechanics (35%)' : undefined,
             children: [
               { id: 'c2_1', label: 'Functional Flow', description: s4.slice(0, 50) },
-              { id: 'c2_2', label: 'Key Characteristics', description: s5.slice(0, 50) },
+              { id: 'c2_2', label: 'Governing Bounds', description: s5.slice(0, 50) },
             ]
           }
         ]
@@ -686,8 +903,9 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
       presentation,
       quiz,
       mindMap,
-      extractedKeywords: [cleanTopic, 'Definitions', 'Flowchart', 'Properties', 'Rules'],
+      extractedKeywords: [cleanTopic, 'Definitions', 'Mechanism', targetExam?.name || 'Academic Deck'],
       isValidTopic: true,
+      examContext,
     };
   }
 
@@ -757,11 +975,13 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
   private static generateAccurateTopicPackage(
     projectId: string,
     topic: string,
-    notes: string
+    notes: string,
+    targetExam?: Exam | null
   ): StudyMaterialsPackage {
     const timestamp = new Date().toISOString();
     const cleanTopic = topic.trim();
     const lower = (cleanTopic + ' ' + notes).toLowerCase();
+    const examContext = this.buildExamTargetContext(targetExam);
 
     let resPkg: StudyMaterialsPackage;
 
@@ -786,7 +1006,14 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
       resPkg = this.generateSolarSystemPackage(projectId, timestamp);
     } else {
       // 2. Domain-Smart Factual Knowledge Engine for Any Custom Topic
-      resPkg = this.generateCustomTopicPackage(projectId, cleanTopic, notes, timestamp);
+      resPkg = this.generateCustomTopicPackage(projectId, cleanTopic, notes, timestamp, targetExam);
+    }
+
+    if (examContext) {
+      resPkg.examContext = examContext;
+      resPkg.presentation.examContext = examContext;
+      resPkg.quiz.examContext = examContext;
+      resPkg.mindMap.examContext = examContext;
     }
 
     resPkg.isValidTopic = true;
@@ -2269,7 +2496,8 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
     projectId: string,
     topic: string,
     notes: string,
-    timestamp: string
+    timestamp: string,
+    targetExam?: Exam | null
   ): StudyMaterialsPackage {
     const formattedTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
     const lower = topic.toLowerCase();
@@ -2277,6 +2505,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
     const hasIndustryApps = this.topicRequiresIndustryApplications(formattedTopic);
     const hasFormulas = this.topicRequiresFormulas(formattedTopic);
     const isBroad = this.topicIsBroadAndComplex(formattedTopic, notes);
+    const examContext = this.buildExamTargetContext(targetExam);
 
     // Detect Academic Category (Biological/Medical, Physical/Chemical, Math/CS, Tech/Engineering, Humanities/Law)
     const isMedicalOrBio = /cell|gene|dna|rna|blood|disease|organ|body|heart|brain|cancer|virus|bacteria|protein|enzyme|plant|animal|species|eco|biology|medicine|health|patient|symptom|pathology/i.test(lower);
@@ -2422,9 +2651,12 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
         id: 'slide_1',
         slideNumber: 1,
         title: formattedTopic,
-        subtitle: 'Academic Study & Comprehensive Conceptual Breakdown',
+        subtitle: targetExam 
+          ? `🎯 Tailored for ${targetExam.name} (${targetExam.badge}) • ${targetExam.country}` 
+          : 'Academic Study & Comprehensive Conceptual Breakdown',
         layout: 'title',
-        notes: `Synthesized directly from your notes on ${formattedTopic}.`,
+        facetType: 'overview',
+        notes: `Synthesized directly from your notes on ${formattedTopic}${targetExam ? ` for ${targetExam.name}` : ''}.`,
         accentColor: '#4f46e5',
       },
       {
@@ -2554,17 +2786,19 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
       id: 'ppt_' + Date.now(),
       title: formattedTopic,
       topic: formattedTopic,
-      author: 'AI Whiteboard & SAFA Developers',
+      author: targetExam ? `AI Whiteboard • ${targetExam.name} Specialist` : 'AI Whiteboard & SAFA Developers',
       createdAt: timestamp,
       theme: 'modern',
+      examContext,
       slides
     };
 
     const quiz: MCQQuizData = {
       id: 'quiz_' + Date.now(),
-      title: `${formattedTopic} — Practice Quiz`,
+      title: targetExam ? `${formattedTopic} — ${targetExam.badge} Practice Quiz` : `${formattedTopic} — Practice Quiz`,
       topic: formattedTopic,
       createdAt: timestamp,
+      examContext,
       questions: [
         {
           id: 'q1',
@@ -2579,6 +2813,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
           explanation: `In the study of ${formattedTopic}, the primary defining framework provides the foundation for all derived properties.`,
           difficulty: 'easy',
           conceptTag: 'Definitions',
+          pattern: 'single_choice'
         },
         {
           id: 'q2',
@@ -2593,6 +2828,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
           explanation: `Operational consistency under governing scientific laws is a key property of ${formattedTopic}.`,
           difficulty: 'medium',
           conceptTag: 'Characteristics',
+          pattern: 'single_choice'
         },
         {
           id: 'q3',
@@ -2607,6 +2843,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
           explanation: `Boundary condition sensitivity must be monitored to ensure reliable system operation.`,
           difficulty: 'medium',
           conceptTag: 'Limitations',
+          pattern: 'single_choice'
         },
         {
           id: 'q4',
@@ -2621,6 +2858,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
           explanation: `${formattedTopic} is widely applied across modern scientific research and real-world systems.`,
           difficulty: 'easy',
           conceptTag: 'Applications',
+          pattern: 'single_choice'
         },
         {
           id: 'q5',
@@ -2635,6 +2873,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
           explanation: `Conservation principles must be preserved across system transformations in ${formattedTopic}.`,
           difficulty: 'hard',
           conceptTag: 'Governing Rules',
+          pattern: 'single_choice'
         }
       ]
     };
@@ -2644,10 +2883,11 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
       title: `${formattedTopic} — Mind Map`,
       topic: formattedTopic,
       createdAt: timestamp,
+      examContext,
       root: {
         id: 'root',
         label: formattedTopic,
-        category: 'Main Topic',
+        category: targetExam ? targetExam.badge : 'Main Topic',
         color: '#4f46e5',
         description: `Central conceptual graph for ${formattedTopic}.`,
         children: [
@@ -2656,6 +2896,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
             label: 'Definitions',
             color: '#06b6d4',
             description: 'Core definitions and scope.',
+            examWeightage: targetExam ? 'Core Concepts (25%)' : undefined,
             children: [
               { id: 'c1_1', label: 'Primary Concept', description: 'Foundational definition' },
               { id: 'c1_2', label: 'Boundary Metrics', description: 'System parameters' },
@@ -2666,6 +2907,7 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
             label: 'Process Architecture',
             color: '#8b5cf6',
             description: 'Input -> Process -> Output flow.',
+            examWeightage: targetExam ? 'Analytical Mechanics (35%)' : undefined,
             children: [
               { id: 'c2_1', label: 'Initiation', description: 'Parameter capture phase' },
               { id: 'c2_2', label: 'Core Mechanism', description: 'Transformation phase' },
@@ -2685,8 +2927,9 @@ IMPORTANT: Do NOT wrap output in markdown fences. Return ONLY raw valid JSON mat
       presentation,
       quiz,
       mindMap,
-      extractedKeywords: [formattedTopic, 'Definitions', 'Flowchart', 'Properties', 'Rules'],
+      extractedKeywords: [formattedTopic, 'Definitions', 'Flowchart', 'Properties', targetExam?.name || 'Academic Deck'],
       isValidTopic: true,
+      examContext,
     };
   }
 

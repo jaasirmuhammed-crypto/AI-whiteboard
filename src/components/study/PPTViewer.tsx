@@ -9,7 +9,10 @@ import {
   Layers,
   FileCheck,
   AlertTriangle,
-  HelpCircle
+  HelpCircle,
+  Award,
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react';
 import { PresentationData, PPTSlide } from '../../types/studyMaterial';
 import { ExportService } from '../../services/exportService';
@@ -26,6 +29,7 @@ export const PPTViewer: React.FC<PPTViewerProps> = ({ presentation }) => {
 
   const slides = presentation.slides || [];
   const currentSlide: PPTSlide | undefined = slides[currentSlideIndex];
+  const examContext = presentation.examContext;
 
   const isUnknownTopic = presentation.title.includes("don't have an idea") || 
                          presentation.title.includes("Unknown Topic") ||
@@ -109,9 +113,62 @@ export const PPTViewer: React.FC<PPTViewerProps> = ({ presentation }) => {
     return <div className="p-8 text-center text-slate-500">No slides available.</div>;
   }
 
+  // Helper for facet label
+  const getFacetBadge = (slide: PPTSlide) => {
+    switch (slide.facetType) {
+      case 'overview': return 'Executive Overview';
+      case 'definition': return 'Core Definitions';
+      case 'mechanism': return 'Process Architecture';
+      case 'tradeoffs': return 'Advantages & Disadvantages';
+      case 'governance_policy': return 'Constitutional & Policy Focus';
+      case 'clinical_pathology': return 'Clinical Pathology & Diagnostics';
+      case 'formulas_numerical': return 'Theorems & Formulas';
+      case 'applications': return 'Real-World Applications';
+      case 'historical_context': return 'Historical Evolution';
+      case 'problem_solution': return 'Analytical Breakdown';
+      case 'exam_strategy': return 'Exam Revision Rules';
+      default: return null;
+    }
+  };
+
   return (
     <div className="space-y-6">
       
+      {/* Target Exam Banner if applicable */}
+      {examContext && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-amber-500/10 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
+              <Award className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
+                <span>{examContext.name}</span>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 text-[10px]">
+                  {examContext.difficultyLevel || 'Exam Focus'}
+                </span>
+                <span className="text-[11px] text-slate-500 font-normal">({examContext.country})</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
+                {examContext.focusSummary || 'Tailored to official exam syllabus, depth, and question patterns.'}
+              </p>
+            </div>
+          </div>
+
+          {examContext.officialPortal && (
+            <a
+              href={examContext.officialPortal}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-750 flex items-center gap-1.5 transition-colors text-[11px]"
+            >
+              <span>Official Portal</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Top Controls & Export Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800 backdrop-blur-xl">
         <div className="flex items-center gap-3">
@@ -123,7 +180,7 @@ export const PPTViewer: React.FC<PPTViewerProps> = ({ presentation }) => {
               {presentation.title}
             </h3>
             <p className="text-[11px] text-slate-400">
-              Slide {currentSlideIndex + 1} of {slides.length} • Verified Academic Topic
+              Slide {currentSlideIndex + 1} of {slides.length} • {examContext ? `${examContext.name} Deck` : 'Academic Topic'}
             </p>
           </div>
         </div>
@@ -167,9 +224,16 @@ export const PPTViewer: React.FC<PPTViewerProps> = ({ presentation }) => {
 
         {/* Slide Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4 z-10">
-          <span className="text-xs font-bold tracking-widest text-indigo-400 uppercase font-mono">
-            {presentation.title}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold tracking-widest text-indigo-400 uppercase font-mono">
+              {presentation.title}
+            </span>
+            {getFacetBadge(currentSlide) && (
+              <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">
+                {getFacetBadge(currentSlide)}
+              </span>
+            )}
+          </div>
           <span className="text-xs text-slate-400 font-mono">
             Slide {currentSlideIndex + 1} / {slides.length}
           </span>

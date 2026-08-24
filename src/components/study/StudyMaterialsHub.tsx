@@ -50,6 +50,19 @@ export const StudyMaterialsHub: React.FC<StudyMaterialsHubProps> = ({ packageDat
               </button>
             </div>
 
+            {packageData.examContext && (
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/30 text-xs font-bold">
+                <span>🎯 Target Exam: {packageData.examContext.name}</span>
+                <span>•</span>
+                <span>{packageData.examContext.country}</span>
+                {packageData.examContext.difficultyLevel && (
+                  <span className="px-2 py-0.2 rounded bg-amber-500/30 text-[10px]">
+                    {packageData.examContext.difficultyLevel}
+                  </span>
+                )}
+              </div>
+            )}
+
             <h1 className="text-2xl sm:text-4xl font-extrabold font-brand tracking-tight">
               {t.outputs.readyTitle}
             </h1>
@@ -58,13 +71,25 @@ export const StudyMaterialsHub: React.FC<StudyMaterialsHubProps> = ({ packageDat
             </p>
           </div>
 
-          {/* Quick Keywords Badges */}
-          <div className="flex flex-wrap gap-1.5 max-w-xs">
-            {packageData.extractedKeywords.slice(0, 6).map((kw, i) => (
-              <span key={i} className="px-2.5 py-1 rounded-lg bg-white/10 text-white text-[11px] font-mono backdrop-blur-md">
-                #{kw}
-              </span>
-            ))}
+          {/* Quick Keywords Badges & Official Link */}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-wrap justify-end gap-1.5 max-w-xs">
+              {packageData.extractedKeywords.slice(0, 6).map((kw, i) => (
+                <span key={i} className="px-2.5 py-1 rounded-lg bg-white/10 text-white text-[11px] font-mono backdrop-blur-md">
+                  #{kw}
+                </span>
+              ))}
+            </div>
+            {packageData.examContext?.officialPortal && (
+              <a
+                href={packageData.examContext.officialPortal}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-amber-300 hover:text-amber-200 underline font-semibold mt-1"
+              >
+                Official Exam Source ({new URL(packageData.examContext.officialPortal).hostname}) ↗
+              </a>
+            )}
           </div>
         </div>
       </div>

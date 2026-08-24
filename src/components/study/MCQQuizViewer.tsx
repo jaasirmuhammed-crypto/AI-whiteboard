@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   HelpCircle, 
   CheckCircle2, 
@@ -73,6 +73,30 @@ export const MCQQuizViewer: React.FC<MCQQuizViewerProps> = ({ quiz }) => {
   return (
     <div className="space-y-6">
       
+      {/* Target Exam Context Banner */}
+      {quiz.examContext && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-900 dark:text-white">
+              🎯 {quiz.examContext.name} Exam Pattern Assessment
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[10px]">
+              {quiz.examContext.difficultyLevel || 'Exam Standard'}
+            </span>
+          </div>
+          {quiz.examContext.officialPortal && (
+            <a
+              href={quiz.examContext.officialPortal}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              Verify on Official Portal ↗
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Top Controls & Difficulty Filters */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800 backdrop-blur-xl">
         <div className="flex items-center gap-3">
@@ -149,7 +173,7 @@ export const MCQQuizViewer: React.FC<MCQQuizViewerProps> = ({ quiz }) => {
                 Your Score: {scorePercentage}% ({correctCount}/{filteredQuestions.length} Correct)
               </h4>
               <p className="text-xs text-emerald-200">
-                {scorePercentage >= 80 ? '🌟 Outstanding mastery of these whiteboard concepts!' : '💪 Great revision effort. Review the explanations below.'}
+                {scorePercentage >= 80 ? '🌟 Outstanding mastery of these concepts!' : '💪 Great revision effort. Review the detailed explanations below.'}
               </p>
             </div>
           </div>
@@ -177,10 +201,17 @@ export const MCQQuizViewer: React.FC<MCQQuizViewerProps> = ({ quiz }) => {
               className="p-6 rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 backdrop-blur-xl shadow-xs space-y-4"
             >
               {/* Question Header & Difficulty Tag */}
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase font-mono">
-                  Question {idx + 1} • {q.conceptTag}
-                </span>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase font-mono">
+                    Question {idx + 1} • {q.conceptTag}
+                  </span>
+                  {q.pattern && (
+                    <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold uppercase font-mono">
+                      {q.pattern.replace('_', ' ')}
+                    </span>
+                  )}
+                </div>
                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
                   q.difficulty === 'easy'
                     ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
@@ -193,7 +224,7 @@ export const MCQQuizViewer: React.FC<MCQQuizViewerProps> = ({ quiz }) => {
               </div>
 
               {/* Question Text */}
-              <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white font-brand">
+              <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white font-brand whitespace-pre-line leading-relaxed">
                 {q.question}
               </h4>
 
