@@ -54,6 +54,7 @@ import { OutputCustomizationModal } from './components/ai/OutputCustomizationMod
 import { ExportHubModal } from './components/common/ExportHubModal';
 import { QuotaUsageModal } from './components/common/QuotaUsageModal';
 import { TokensExhaustedModal } from './components/common/TokensExhaustedModal';
+import { OnboardingTourModal } from './components/common/OnboardingTourModal';
 
 // Study Hub
 import { StudyMaterialsHub } from './components/study/StudyMaterialsHub';
@@ -203,6 +204,7 @@ const MainAppContent: React.FC = () => {
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
   const [quotaModalOpen, setQuotaModalOpen] = useState(false);
   const [tokensExhaustedModalOpen, setTokensExhaustedModalOpen] = useState(false);
+  const [onboardingTourOpen, setOnboardingTourOpen] = useState(false);
 
   // Live Brush Intro Animation State
   const [showIntro, setShowIntro] = useState(true);
@@ -514,6 +516,7 @@ const MainAppContent: React.FC = () => {
               onOpenVersionHistory={() => setVersionHistoryOpen(true)}
               onOpenLayers={() => setLayersModalOpen(true)}
               onOpenTemplates={() => setTemplatesModalOpen(true)}
+              onOpenTutorial={() => setOnboardingTourOpen(true)}
               onOpenQuota={() => (isPremium ? setQuotaModalOpen(true) : setTokensExhaustedModalOpen(true))}
               onOpenCustomization={() => setOutputCustomizationOpen(true)}
               isMultiplayerActive={isMultiplayerActive}
@@ -788,6 +791,12 @@ const MainAppContent: React.FC = () => {
             updateCurrentProjectElements([...currentProject.elements, ...newElements]);
           }
         }}
+      />
+
+      {/* Interactive 30-Second Onboarding Tour */}
+      <OnboardingTourModal
+        isOpen={onboardingTourOpen}
+        onClose={() => setOnboardingTourOpen(false)}
       />
 
     </div>

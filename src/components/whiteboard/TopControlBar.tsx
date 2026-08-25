@@ -21,7 +21,8 @@ import {
   Zap,
   Sliders,
   Crown,
-  LayoutTemplate
+  LayoutTemplate,
+  HelpCircle
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { useI18n } from '../../i18n';
@@ -45,6 +46,7 @@ interface TopControlBarProps {
   onOpenVersionHistory?: () => void;
   onOpenLayers?: () => void;
   onOpenTemplates?: () => void;
+  onOpenTutorial?: () => void;
   onOpenQuota?: () => void;
   onOpenCustomization?: () => void;
   isMultiplayerActive?: boolean;
@@ -67,6 +69,7 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
   onOpenVersionHistory,
   onOpenLayers,
   onOpenTemplates,
+  onOpenTutorial,
   onOpenQuota,
   onOpenCustomization,
   isMultiplayerActive = false,
@@ -226,6 +229,17 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
             title="Notebook Templates (Cornell, Mind Map, STEM, Q&A)"
           >
             <LayoutTemplate className="w-4 h-4 text-indigo-500" />
+          </button>
+        )}
+
+        {/* 30-Second Interactive Tour */}
+        {onOpenTutorial && (
+          <button
+            onClick={onOpenTutorial}
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+            title="Interactive Onboarding Tour & Guide"
+          >
+            <HelpCircle className="w-4 h-4 text-amber-500" />
           </button>
         )}
 
