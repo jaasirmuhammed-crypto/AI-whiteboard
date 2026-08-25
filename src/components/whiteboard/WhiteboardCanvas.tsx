@@ -171,6 +171,102 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     }
   }, [canRedo, historyIndex, history, props]);
 
+  // Multi-Touch Pinch-to-Zoom & Two-Finger Pan Engine
+  const touchStateRef = useRef<{
+    initialDist: number;
+    initialScale: number;
+    initialPan: { x: number; y: number };
+    initialCenter: { x: number; y: number };
+    isMultiTouch: boolean;
+  }>({
+    initialDist: 0,
+    initialScale: 1,
+    initialPan: { x: 0, y: 0 },
+    initialCenter: { x: 0, y: 0 },
+    isMultiTouch: false,
+  });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const center = {
+          x: (t1.clientX + t2.clientX) / 2,
+          y: (t1.clientY + t2.clientY) / 2,
+        };
+
+        touchStateRef.current = {
+          initialDist: dist,
+          initialScale: props.scale,
+          initialPan: { ...props.panOffset },
+          initialCenter: center,
+          isMultiTouch: true,
+        };
+
+        // Cancel any pending single-finger stroke
+        currentStrokeRef.current = null;
+        currentShapeRef.current = null;
+        isPointerDownRef.current = false;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && touchStateRef.current.isMultiTouch) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const center = {
+          x: (t1.clientX + t2.clientX) / 2,
+          y: (t1.clientY + t2.clientY) / 2,
+        };
+
+        const { initialDist, initialScale, initialPan, initialCenter } = touchStateRef.current;
+        if (initialDist > 0) {
+          const scaleFactor = dist / initialDist;
+          const newScale = Math.min(4.0, Math.max(0.2, initialScale * scaleFactor));
+          props.onScaleChange(newScale);
+
+          const dx = center.x - initialCenter.x;
+          const dy = center.y - initialCenter.y;
+          props.onPanChange({
+            x: initialPan.x + dx,
+            y: initialPan.y + dy,
+          });
+        }
+      } else if (e.touches.length === 1 && !props.isPanMode) {
+        // Prevent accidental browser page scroll while actively drawing strokes
+        if (isPointerDownRef.current && (props.activeTool === 'pen' || props.activeTool === 'highlighter' || props.activeTool === 'eraser' || props.activeTool === 'pencil')) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        touchStateRef.current.isMultiTouch = false;
+      }
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd, { passive: false });
+    container.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+      container.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [props.scale, props.panOffset, props.onScaleChange, props.onPanChange, props.isPanMode, props.activeTool]);
+
   // SVG Export helper
   const getSVGString = useCallback((): string => {
     const isDark = theme === 'dark';
@@ -1204,19 +1300,19 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         })()
       )}
 
-      {/* Inline Text Editor */}
+      {/* Inline Text Editor Popover with Touch Confirm Button */}
       {activeTextInput && (
         <div
-          className="absolute z-30"
+          className="absolute z-30 flex items-center gap-1.5 p-1 bg-white/95 dark:bg-slate-800/95 border-2 border-indigo-500 rounded-2xl shadow-2xl backdrop-blur-md"
           style={{
             left: `${activeTextInput.x * props.scale + props.panOffset.x}px`,
             top: `${activeTextInput.y * props.scale + props.panOffset.y}px`,
           }}
         >
           <input
-            autoFocus
             type="text"
-            placeholder="Type text... (Press Enter or Click away)"
+            autoFocus
+            placeholder="Type text..."
             value={activeTextInput.text}
             onChange={(e) => setActiveTextInput({ ...activeTextInput, text: e.target.value })}
             onKeyDown={(e) => {
@@ -1251,7 +1347,15 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
                 setActiveTextInput(null);
               }
             }}
-            onBlur={() => {
+            className="px-3 py-1.5 bg-transparent text-slate-900 dark:text-white outline-hidden min-w-[140px]"
+            style={{
+              fontSize: `${Math.max(16, props.fontSize)}px`,
+              fontFamily: props.fontFamily,
+              color: props.color,
+            }}
+          />
+          <button
+            onClick={() => {
               if (activeTextInput.text.trim()) {
                 if (activeTextInput.id) {
                   const updated = props.elements.map((el) =>
@@ -1279,13 +1383,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
               }
               setActiveTextInput(null);
             }}
-            className="px-3 py-1.5 bg-white/95 dark:bg-slate-800/95 border-2 border-indigo-500 rounded-xl shadow-2xl text-slate-900 dark:text-white outline-hidden min-w-[140px]"
-            style={{
-              fontSize: `${props.fontSize}px`,
-              fontFamily: props.fontFamily,
-              color: props.color,
-            }}
-          />
+            className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-colors"
+            title="Done"
+          >
+            <Check className="w-4 h-4" />
+          </button>
         </div>
       )}
 

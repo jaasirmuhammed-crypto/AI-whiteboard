@@ -62,6 +62,7 @@ interface FloatingToolbarProps {
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
   const [activePopover, setActivePopover] = useState<'color' | 'stroke' | 'text' | 'shape' | null>(null);
+  const [isMobileCollapsed, setIsMobileCollapsed] = useState(false);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -70,13 +71,17 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
   };
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
         setActivePopover(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   const PALETTE_COLORS = [
@@ -106,10 +111,25 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
     if (e.target) e.target.value = '';
   };
 
+  // If collapsed on mobile, render minimal floating toggle pill
+  if (isMobileCollapsed) {
+    return (
+      <div className="fixed bottom-4 right-4 z-40 sm:hidden">
+        <button
+          onClick={() => setIsMobileCollapsed(false)}
+          className="p-3.5 rounded-full bg-indigo-600 text-white shadow-2xl shadow-indigo-600/50 flex items-center justify-center border-2 border-white dark:border-slate-800"
+          title="Expand Whiteboard Tools"
+        >
+          <PenTool className="w-5 h-5" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div 
       ref={toolbarRef}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center select-none"
+      className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center select-none max-w-[calc(100vw-1rem)] px-2"
     >
       {/* Hidden File Input for Image Upload */}
       <input
