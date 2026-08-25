@@ -121,10 +121,16 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
 
-  // Mark buffer dirty whenever external elements or view changes
+  // Mark buffer dirty whenever external elements or view changes & sync history on load
+  const prevElementsLengthRef = useRef(props.elements.length);
   useEffect(() => {
     isBufferDirtyRef.current = true;
-  }, [props.elements, props.backgroundPattern, theme, props.scale, props.panOffset, props.layers]);
+    if (history.length <= 1 && props.elements.length > 0 && history[0].length === 0) {
+      prevElementsLengthRef.current = props.elements.length;
+      setHistory([props.elements]);
+      setHistoryIndex(0);
+    }
+  }, [props.elements, props.backgroundPattern, theme, props.scale, props.panOffset, props.layers, history]);
 
   const pushToHistory = useCallback((newElements: WhiteboardElement[]) => {
     const updatedHistory = history.slice(0, historyIndex + 1);

@@ -46,12 +46,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const saveTimeoutRef = useRef<any>(null);
 
-  // Load projects from storage on mount
+  // Load projects from storage on mount & restore last active drawing
   useEffect(() => {
     const loaded = StorageService.getProjects();
     setProjects(loaded);
-    if (loaded.length > 0 && !currentProject) {
-      setCurrentProject(loaded[0]);
+    const activeId = localStorage.getItem('ai_whiteboard_active_proj_id');
+    const targetProj = (activeId && loaded.find((p) => p.id === activeId)) || loaded[0];
+    if (targetProj) {
+      setCurrentProject(targetProj);
+      if (targetProj.studyMaterials) {
+        setActiveStudyMaterials(targetProj.studyMaterials);
+      }
     }
   }, []);
 
@@ -83,6 +88,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatedAt: new Date().toISOString(),
     };
     StorageService.saveProject(newProj);
+    localStorage.setItem('ai_whiteboard_active_proj_id', newProj.id);
     setProjects(StorageService.getProjects());
     setCurrentProject(newProj);
     setCurrentView('whiteboard');
@@ -93,6 +99,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const loadProject = (projectId: string) => {
     const proj = projects.find(p => p.id === projectId) || StorageService.getProjectById(projectId);
     if (proj) {
+      localStorage.setItem('ai_whiteboard_active_proj_id', proj.id);
       setCurrentProject(proj);
       if (proj.studyMaterials) {
         setActiveStudyMaterials(proj.studyMaterials);
