@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Sparkles, PenTool, ArrowRight } from 'lucide-react';
 import { useI18n } from '../../i18n';
 
@@ -21,15 +21,15 @@ export const CTASection: React.FC<CTASectionProps> = ({ onStartWriting }) => {
           <div className="relative z-10 max-w-2xl mx-auto text-center space-y-6">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-indigo-200 text-xs font-semibold backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
-              <span>Ready for Next-Level Studying?</span>
+              <span>{t.cta?.badge || 'Ready for Next-Level Studying?'}</span>
             </div>
 
             <h2 className="text-3xl sm:text-4xl font-extrabold font-brand tracking-tight">
-              Start Converting Your Notes Today
+              {t.cta?.title || 'Start Converting Your Notes Today'}
             </h2>
 
             <p className="text-sm sm:text-base text-indigo-200/90 leading-relaxed">
-              Join thousands of students and teachers transforming handwritten sketches into PowerPoint decks, quizzes, and mind maps in seconds.
+              {t.cta?.subtitle || 'Join thousands of students and teachers transforming handwritten sketches into PowerPoint decks, quizzes, and mind maps in seconds.'}
             </p>
 
             <div className="pt-2 flex justify-center">
@@ -38,7 +38,7 @@ export const CTASection: React.FC<CTASectionProps> = ({ onStartWriting }) => {
                 className="px-8 py-4 rounded-2xl bg-white text-indigo-950 hover:bg-slate-100 font-bold text-sm sm:text-base shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 flex items-center gap-3 group"
               >
                 <PenTool className="w-5 h-5 text-indigo-600 group-hover:rotate-12 transition-transform" />
-                <span>Launch AI Whiteboard Now</span>
+                <span>{t.cta?.button || t.hero.startWriting}</span>
                 <ArrowRight className="w-4 h-4 text-indigo-600 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>

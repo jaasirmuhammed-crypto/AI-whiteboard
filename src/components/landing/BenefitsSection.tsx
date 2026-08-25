@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Target, Clock, Zap, BookMarked, Sparkles } from 'lucide-react';
 import { useI18n } from '../../i18n';
 
@@ -43,7 +43,7 @@ export const BenefitsSection: React.FC = () => {
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
           <h2 className="text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-            Pedagogical Advantage
+            {t.benefits.badge || 'Pedagogical Advantage'}
           </h2>
           <p className="text-3xl sm:text-4xl font-extrabold font-brand tracking-tight text-slate-900 dark:text-white">
             {t.benefits.title}

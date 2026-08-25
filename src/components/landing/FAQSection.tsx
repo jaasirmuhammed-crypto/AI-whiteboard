@@ -1,29 +1,31 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ChevronDown, HelpCircle } from 'lucide-react';
+import { useI18n } from '../../i18n';
 
 export const FAQSection: React.FC = () => {
+  const { t } = useI18n();
   const [openIdx, setOpenIdx] = useState<number | null>(0);
 
   const faqs = [
     {
-      q: 'How does the handwriting and diagram recognition work?',
-      a: 'When you click "Stop & Process", high-resolution vector and bitmap snapshots of your whiteboard canvas are analyzed by our multimodal neural pipeline. It transcribes natural handwriting, chemical formulas, mathematical proofs, and flowcharts into semantic text and relationships.',
+      q: t.faq?.q1 || 'How does the handwriting and diagram recognition work?',
+      a: t.faq?.a1 || 'When you click "Stop & Process", high-resolution vector and bitmap snapshots of your whiteboard canvas are analyzed by our multimodal neural pipeline. It transcribes natural handwriting, chemical formulas, mathematical proofs, and flowcharts into semantic text and relationships.',
     },
     {
-      q: 'Can I export presentations to standard Microsoft PowerPoint (.pptx)?',
-      a: 'Yes! The PowerPoint generator outputs fully editable native .pptx files formatted with professional color palettes, bullet points, speaker notes, and slide headers.',
+      q: t.faq?.q2 || 'Can I export presentations to standard Microsoft PowerPoint (.pptx)?',
+      a: t.faq?.a2 || 'Yes! The PowerPoint generator outputs fully editable native .pptx files formatted with professional color palettes, bullet points, speaker notes, and slide headers.',
     },
     {
-      q: 'Does it support international languages like Tamil, Hindi, Arabic, or French?',
-      a: 'Absolutely. AI Whiteboard supports 15+ international languages with native character rendering, multilingual OCR extraction, and bidirectional RTL formatting for Arabic.',
+      q: t.faq?.q3 || 'Does it support international languages like Tamil, Hindi, Arabic, or French?',
+      a: t.faq?.a3 || 'Absolutely. AI Whiteboard supports 15+ international languages with native character rendering, multilingual OCR extraction, and bidirectional RTL formatting for Arabic.',
     },
     {
-      q: 'Will my notes be saved if I accidentally refresh the page?',
-      a: 'Yes, our smart continuous auto-save engine buffers your strokes and elements locally and securely in real time, so your work is always preserved.',
+      q: t.faq?.q4 || 'Will my notes be saved if I accidentally refresh the page?',
+      a: t.faq?.a4 || 'Yes, our smart continuous auto-save engine buffers your strokes and elements locally and securely in real time, so your work is always preserved.',
     },
     {
-      q: 'Can I use a stylus like Apple Pencil or Wacom tablet?',
-      a: 'Yes! The canvas utilizes unified Pointer Events API with full pressure sensitivity and palm-rejection support for iPad, tablet, touchscreen, and stylus workflows.',
+      q: t.faq?.q5 || 'Can I use a stylus like Apple Pencil or Wacom tablet?',
+      a: t.faq?.a5 || 'Yes! The canvas utilizes unified Pointer Events API with full pressure sensitivity and palm-rejection support for iPad, tablet, touchscreen, and stylus workflows.',
     },
   ];
 
@@ -34,10 +36,10 @@ export const FAQSection: React.FC = () => {
         {/* Header */}
         <div className="text-center space-y-4 mb-14">
           <h2 className="text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-            Frequently Asked Questions
+            {t.faq?.badge || 'Frequently Asked Questions'}
           </h2>
           <p className="text-3xl font-extrabold font-brand text-slate-900 dark:text-white">
-            Everything You Need to Know
+            {t.faq?.title || 'Everything You Need to Know'}
           </p>
         </div>
 

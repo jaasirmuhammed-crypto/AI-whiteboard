@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { 
   PenTool, 
   Eraser, 
@@ -12,7 +12,7 @@ import { useI18n } from '../../i18n';
 import { useProject } from '../../context/ProjectContext';
 
 export const DemoWhiteboard: React.FC = () => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { setCurrentView, createProject } = useProject();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -123,19 +123,30 @@ export const DemoWhiteboard: React.FC = () => {
     }
   };
 
+  const isTa = language === 'ta';
+  const isHi = language === 'hi';
+  const isAr = language === 'ar';
+  const isEs = language === 'es';
+  const isZh = language === 'zh';
+
+  const miniBadge = isTa ? 'ஊடாடும் பயிற்சி அரங்கம்' : isHi ? 'इंटरैक्टिव मिनी खेल का मैदान' : isAr ? 'منطقة تجربة تفاعلية مصغرة' : isEs ? 'Área de Prueba Interactiva' : isZh ? '交互式快速体验画板' : 'Interactive Mini Playground';
+  const miniTitle = isTa ? 'ஒயிட்போர்டின் மென்மையான அனுபவம்' : isHi ? 'व्हाइटबोर्ड की सहजता का अनुभव करें' : isAr ? 'جرب سلاسة السبورة التفاعلية' : isEs ? 'Experimenta la Fluidez de la Pizarra' : isZh ? '即刻体验智能白板的极致丝滑' : 'Experience the Whiteboard Fluidity';
+  const miniDesc = isTa ? 'கீழே நேரடியாக வரையவும் அல்லது முழு அளவிலான ஸ்டுடியோவைத் திறக்கவும்.' : isHi ? 'सीधे नीचे ड्रा करें या पूर्ण-स्क्रीन पेशेवर स्टूडियो में जाएं।' : isAr ? 'ارسم مباشرة في الأسفل أو انتقل إلى الاستوديو الاحترافي الكامل.' : isEs ? 'Dibuja directamente abajo o entra al estudio profesional completo.' : isZh ? '在下方直接涂鸦书写，或一键进入全屏专业级创作工坊。' : 'Draw directly below or jump into the full-screen professional studio.';
+  const launchStudio = isTa ? 'முழு பலகையைத் திற' : isHi ? 'पूर्ण स्टूडियो खोलें' : isAr ? 'فتح الاستوديو الكامل' : isEs ? 'Abrir Estudio Completo' : isZh ? '开启全屏白板工作台' : 'Launch Full Studio';
+
   return (
     <section className="py-16 lg:py-24 relative">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center space-y-3 mb-10">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
             <Sparkles className="w-3.5 h-3.5" />
-            Interactive Mini Playground
+            {miniBadge}
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold font-brand text-slate-900 dark:text-white">
-            Experience the Whiteboard Fluidity
+            {miniTitle}
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-            Draw directly below or jump into the full-screen professional studio.
+            {miniDesc}
           </p>
         </div>
 
@@ -154,7 +165,7 @@ export const DemoWhiteboard: React.FC = () => {
                 }`}
               >
                 <PenTool className="w-4 h-4" />
-                <span>Pen</span>
+                <span>{t.whiteboard.pens || 'Pen'}</span>
               </button>
 
               <button
@@ -166,7 +177,7 @@ export const DemoWhiteboard: React.FC = () => {
                 }`}
               >
                 <Eraser className="w-4 h-4" />
-                <span>Eraser</span>
+                <span>{t.whiteboard.eraser || 'Eraser'}</span>
               </button>
 
               {/* Swatches */}
@@ -192,7 +203,7 @@ export const DemoWhiteboard: React.FC = () => {
                 className="p-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                Clear
+                {t.whiteboard.clear || 'Clear'}
               </button>
 
               <button
@@ -202,7 +213,7 @@ export const DemoWhiteboard: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md flex items-center gap-1.5 transition-all active:scale-95"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
-                Launch Full Studio
+                {launchStudio}
               </button>
             </div>
           </div>

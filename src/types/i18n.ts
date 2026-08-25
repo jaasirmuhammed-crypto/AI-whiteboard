@@ -53,8 +53,37 @@ export interface TranslationDictionary {
     demoBullet1: string;
     demoBullet2: string;
     demoBullet3: string;
+    zeroLatency?: string;
+    pptxPdfMindmap?: string;
+    languagesSupported?: string;
+    livePreview?: string;
+    aiActive?: string;
+    pptGenerated?: string;
+    mcqsReady?: string;
+    mindMapBadge?: string;
+  };
+  cta?: {
+    badge: string;
+    title: string;
+    subtitle: string;
+    button: string;
+  };
+  faq?: {
+    badge: string;
+    title: string;
+    q1: string;
+    a1: string;
+    q2: string;
+    a2: string;
+    q3: string;
+    a3: string;
+    q4: string;
+    a4: string;
+    q5: string;
+    a5: string;
   };
   howItWorks: {
+    badge?: string;
     title: string;
     subtitle: string;
     step1Title: string;
@@ -67,6 +96,7 @@ export interface TranslationDictionary {
     step4Desc: string;
   };
   features: {
+    badge?: string;
     title: string;
     subtitle: string;
     f1Title: string;
@@ -83,6 +113,7 @@ export interface TranslationDictionary {
     f6Desc: string;
   };
   outputs: {
+    badge?: string;
     title: string;
     subtitle: string;
     pptTitle: string;
@@ -97,6 +128,7 @@ export interface TranslationDictionary {
     readyTitle: string;
   };
   benefits: {
+    badge?: string;
     title: string;
     subtitle: string;
     b1Title: string;
