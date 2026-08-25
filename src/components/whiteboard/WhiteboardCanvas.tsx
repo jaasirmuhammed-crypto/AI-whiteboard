@@ -4,6 +4,7 @@ import {
   StrokeElement, 
   ShapeElement, 
   TextElement, 
+  StickyElement,
   StrokePoint, 
   ToolType, 
   PenType, 
@@ -17,6 +18,7 @@ import {
 } from '../../types/whiteboard';
 import { useTheme } from '../../context/ThemeContext';
 import { detectSmartShape } from '../../utils/strokeMath';
+import { Trash2, Move, Check } from 'lucide-react';
 
 export interface WhiteboardCanvasRef {
   getSnapshotDataUrl: () => string;
@@ -62,7 +64,7 @@ interface WhiteboardCanvasProps {
 
 export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvasProps>((props, ref) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null); // Double-buffer for 120 FPS blitting
+  const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { theme } = useTheme();
 
@@ -70,13 +72,26 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
   const [history, setHistory] = useState<WhiteboardElement[][]>([props.elements]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  // Active interaction refs to avoid 120Hz React state thrashing during drawing
+  // Active interaction refs
   const isPointerDownRef = useRef(false);
   const currentStrokeRef = useRef<StrokeElement | null>(null);
   const currentShapeRef = useRef<ShapeElement | null>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const isBufferDirtyRef = useRef(true);
   const animFrameIdRef = useRef<number | null>(null);
+
+  // Selected & Dragging Element State
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const draggingElementRef = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    startMouseX: number;
+    startMouseY: number;
+    hasMoved: boolean;
+  } | null>(null);
+
+  const [cursorStyle, setCursorStyle] = useState<string>('default');
 
   // UI notifications
   const [detectedShapeToast, setDetectedShapeToast] = useState<string | null>(null);
@@ -86,12 +101,21 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
   const lastFpsTimeRef = useRef(performance.now());
   const lastDrawStartRef = useRef(performance.now());
 
-  // Active inline text editing
+  // Active inline text & sticky note editing
   const [activeTextInput, setActiveTextInput] = useState<{
     id?: string;
     x: number;
     y: number;
     text: string;
+  } | null>(null);
+
+  const [activeStickyInput, setActiveStickyInput] = useState<{
+    id?: string;
+    x: number;
+    y: number;
+    text: string;
+    width: number;
+    height: number;
   } | null>(null);
 
   const canUndo = historyIndex > 0;
@@ -140,12 +164,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     }
   }, [canRedo, historyIndex, history, props]);
 
-  // Export SVG utility
-  const getSVGString = useCallback(() => {
-    const width = 1920;
-    const height = 1080;
-    let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">\n`;
-    svgContent += `<rect width="100%" height="100%" fill="${theme === 'dark' ? '#090d16' : '#ffffff'}"/>\n`;
+  // SVG Export helper
+  const getSVGString = useCallback((): string => {
+    const isDark = theme === 'dark';
+    const bg = isDark ? '#020617' : '#ffffff';
+    let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" style="background-color: ${bg};">\n`;
 
     props.elements.forEach((el) => {
       if (el.type === 'stroke' && el.points.length > 1) {
@@ -175,6 +198,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     },
     clearCanvas: () => {
       pushToHistory([]);
+      setSelectedElementId(null);
     },
     undo: handleUndo,
     redo: handleRedo,
@@ -183,7 +207,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     getSVGString,
   }), [handleUndo, handleRedo, canUndo, canRedo, pushToHistory, getSVGString]);
 
-  // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y)
+  // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Delete)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
@@ -194,11 +218,17 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
         e.preventDefault();
         handleRedo();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedElementId) {
+          const remaining = props.elements.filter((el) => el.id !== selectedElementId);
+          pushToHistory(remaining);
+          setSelectedElementId(null);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, selectedElementId, props.elements, pushToHistory]);
 
   // Coordinate mapping
   const screenToWorld = useCallback((clientX: number, clientY: number) => {
@@ -209,6 +239,48 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     const y = (clientY - rect.top - props.panOffset.y) / props.scale;
     return { x, y };
   }, [props.panOffset, props.scale]);
+
+  // Hit test helper for text, sticky notes, and shapes
+  const hitTestElement = useCallback((worldX: number, worldY: number): WhiteboardElement | null => {
+    for (let i = props.elements.length - 1; i >= 0; i--) {
+      const el = props.elements[i];
+      if (el.type === 'text') {
+        const textWidth = Math.max(60, (el.text || 'Text').length * (el.fontSize || 18) * 0.65);
+        const textHeight = (el.fontSize || 18) * 1.5;
+        if (
+          worldX >= el.x - 8 &&
+          worldX <= el.x + textWidth + 8 &&
+          worldY >= el.y - textHeight &&
+          worldY <= el.y + 12
+        ) {
+          return el;
+        }
+      } else if (el.type === 'sticky') {
+        const w = el.width || 200;
+        const h = el.height || 160;
+        if (worldX >= el.x && worldX <= el.x + w && worldY >= el.y && worldY <= el.y + h) {
+          return el;
+        }
+      } else if (el.type === 'shape') {
+        if (el.shapeType === 'sticky-note') {
+          const w = el.width || 200;
+          const h = el.height || 160;
+          if (worldX >= el.x && worldX <= el.x + w && worldY >= el.y && worldY <= el.y + h) {
+            return el;
+          }
+        } else if (props.activeTool === 'select') {
+          const minX = Math.min(el.x, el.x + el.width);
+          const maxX = Math.max(el.x, el.x + el.width);
+          const minY = Math.min(el.y, el.y + el.height);
+          const maxY = Math.max(el.y, el.y + el.height);
+          if (worldX >= minX - 10 && worldX <= maxX + 10 && worldY >= minY - 10 && worldY <= maxY + 10) {
+            return el;
+          }
+        }
+      }
+    }
+    return null;
+  }, [props.elements, props.activeTool]);
 
   // Render static elements onto Offscreen Buffer Canvas
   const updateBufferCanvas = useCallback((width: number, height: number, dpr: number) => {
@@ -279,42 +351,54 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     }
 
     // 2. Render Committed Elements
-    const hiddenLayers = new Set((props.layers || []).filter(l => !l.visible).map(l => l.id));
-    const elementsToRender = props.elements.filter(el => !el.layerId || !hiddenLayers.has(el.layerId));
+    props.elements.forEach((el) => {
+      // Layer visibility & lock checks
+      if (el.layerId && props.layers) {
+        const layer = props.layers.find((l) => l.id === el.layerId);
+        if (layer && !layer.visible) return;
+      }
 
-    elementsToRender.forEach((el) => {
       bCtx.save();
 
       if (el.type === 'stroke') {
-        if (el.points.length < 2) {
-          bCtx.restore();
-          return;
-        }
+        const stroke = el as StrokeElement;
+        if (stroke.points.length > 1) {
+          bCtx.globalAlpha = stroke.opacity || 1;
+          bCtx.strokeStyle = stroke.color;
+          bCtx.lineCap = 'round';
+          bCtx.lineJoin = 'round';
 
-        bCtx.globalAlpha = el.opacity || 1;
-        bCtx.strokeStyle = el.color;
-        bCtx.lineCap = 'round';
-        bCtx.lineJoin = 'round';
-
-        // Optimized Quadratic Curve rendering for strokes
-        bCtx.beginPath();
-        bCtx.moveTo(el.points[0].x, el.points[0].y);
-        for (let i = 1; i < el.points.length - 1; i++) {
-          const midX = (el.points[i].x + el.points[i + 1].x) / 2;
-          const midY = (el.points[i].y + el.points[i + 1].y) / 2;
-          bCtx.lineWidth = el.width * (el.points[i].pressure || 1);
-          bCtx.quadraticCurveTo(el.points[i].x, el.points[i].y, midX, midY);
+          if (stroke.tool === 'highlighter') {
+            bCtx.globalAlpha = 0.35;
+            bCtx.lineWidth = stroke.width * 2.5;
+            bCtx.beginPath();
+            bCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+            for (let i = 1; i < stroke.points.length; i++) {
+              bCtx.lineTo(stroke.points[i].x, stroke.points[i].y);
+            }
+            bCtx.stroke();
+          } else {
+            bCtx.beginPath();
+            bCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+            for (let i = 1; i < stroke.points.length - 1; i++) {
+              const midX = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
+              const midY = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
+              bCtx.lineWidth = stroke.width * (stroke.points[i].pressure || 1);
+              bCtx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, midX, midY);
+            }
+            bCtx.stroke();
+          }
         }
-        const last = el.points[el.points.length - 1];
-        bCtx.lineTo(last.x, last.y);
-        bCtx.stroke();
       } else if (el.type === 'shape') {
+        const shapeType = el.shapeType;
+        const x = el.x;
+        const y = el.y;
+        const w = el.width;
+        const h = el.height;
+
         bCtx.globalAlpha = el.opacity || 1;
         bCtx.strokeStyle = el.color;
         bCtx.lineWidth = el.strokeWidth || 2;
-        bCtx.fillStyle = el.fillColor || 'transparent';
-
-        const { x, y, width: w, height: h, shapeType } = el;
 
         if (shapeType === 'rectangle') {
           bCtx.strokeRect(x, y, w, h);
@@ -357,17 +441,95 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
           bCtx.fillStyle = el.color;
           bCtx.fill();
         } else if (shapeType === 'sticky-note') {
-          bCtx.fillStyle = el.fillColor || '#fef3c7';
+          const noteWidth = el.width || 200;
+          const noteHeight = el.height || 160;
+          const noteBg = el.fillColor || '#fef3c7';
+
+          bCtx.shadowColor = 'rgba(0,0,0,0.18)';
+          bCtx.shadowBlur = 10;
+          bCtx.shadowOffsetY = 4;
+
+          bCtx.fillStyle = noteBg;
           bCtx.strokeStyle = '#f59e0b';
           bCtx.lineWidth = 1.5;
           bCtx.beginPath();
-          bCtx.roundRect(x, y, w, h, 16);
+          bCtx.roundRect(x, y, noteWidth, noteHeight, 14);
           bCtx.fill();
           bCtx.stroke();
 
+          bCtx.shadowColor = 'transparent';
           bCtx.fillStyle = '#92400e';
-          bCtx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
-          bCtx.fillText('📌 Note', x + 12, y + 24);
+          bCtx.font = 'bold 13px "Plus Jakarta Sans", sans-serif';
+          bCtx.fillText('📌 Sticky Note', x + 14, y + 26);
+
+          const noteText = (el as any).text || '';
+          if (noteText) {
+            bCtx.fillStyle = '#1e293b';
+            bCtx.font = '13px "Plus Jakarta Sans", sans-serif';
+            const words = noteText.split(' ');
+            let line = '';
+            let lineY = y + 50;
+            const maxLineW = noteWidth - 28;
+            for (let n = 0; n < words.length; n++) {
+              const testLine = line + words[n] + ' ';
+              const metrics = bCtx.measureText(testLine);
+              if (metrics.width > maxLineW && n > 0) {
+                bCtx.fillText(line, x + 14, lineY);
+                line = words[n] + ' ';
+                lineY += 18;
+              } else {
+                line = testLine;
+              }
+            }
+            bCtx.fillText(line, x + 14, lineY);
+          } else {
+            bCtx.fillStyle = 'rgba(146, 64, 14, 0.45)';
+            bCtx.font = 'italic 12px "Plus Jakarta Sans", sans-serif';
+            bCtx.fillText('Click to drag or edit...', x + 14, y + 52);
+          }
+        }
+      } else if (el.type === 'sticky') {
+        const sticky = el as StickyElement;
+        const noteWidth = sticky.width || 200;
+        const noteHeight = sticky.height || 160;
+        const noteBg = sticky.color || '#fef3c7';
+
+        bCtx.shadowColor = 'rgba(0,0,0,0.18)';
+        bCtx.shadowBlur = 10;
+        bCtx.shadowOffsetY = 4;
+
+        bCtx.fillStyle = noteBg;
+        bCtx.strokeStyle = '#f59e0b';
+        bCtx.lineWidth = 1.5;
+        bCtx.beginPath();
+        bCtx.roundRect(sticky.x, sticky.y, noteWidth, noteHeight, 14);
+        bCtx.fill();
+        bCtx.stroke();
+
+        bCtx.shadowColor = 'transparent';
+        bCtx.fillStyle = '#92400e';
+        bCtx.font = 'bold 13px "Plus Jakarta Sans", sans-serif';
+        bCtx.fillText(`📌 ${sticky.title || 'Note'}`, sticky.x + 14, sticky.y + 26);
+
+        if (sticky.text) {
+          bCtx.fillStyle = '#1e293b';
+          bCtx.font = '13px "Plus Jakarta Sans", sans-serif';
+          const words = sticky.text.split(' ');
+          let line = '';
+          let lineY = sticky.y + 50;
+          const maxLineW = noteWidth - 28;
+          for (let n = 0; n < words.length; n++) {
+            const testLine = line + words[n] + ' ';
+            const metrics = bCtx.measureText(testLine);
+            if (metrics.width > maxLineW && n > 0) {
+              bCtx.fillText(line, sticky.x + 14, lineY);
+              line = words[n] + ' ';
+              lineY += 18;
+            } else {
+              line = testLine;
+            }
+          }
+          bCtx.fillText(line, sticky.x + 14, lineY);
         }
       } else if (el.type === 'text') {
         const fontStyle = `${el.italic ? 'italic ' : ''}${el.bold ? 'bold ' : ''}${el.fontSize}px ${el.fontFamily}`;
@@ -424,16 +586,17 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       ctx.drawImage(bufferCanvasRef.current, 0, 0);
     }
 
-    // 3. Render In-Progress Active Stroke on top with subpixel precision
+    // 3. Render In-Progress Active Stroke, Dragging Overlay, or Selection Bounding Box
     const activeStroke = currentStrokeRef.current;
     const activeShape = currentShapeRef.current;
 
-    if (activeStroke || activeShape || (props.collaborators && props.collaborators.length > 0)) {
+    if (activeStroke || activeShape || selectedElementId || (props.collaborators && props.collaborators.length > 0)) {
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.translate(props.panOffset.x, props.panOffset.y);
       ctx.scale(props.scale, props.scale);
 
+      // Draw active stroke
       if (activeStroke && activeStroke.points.length > 1) {
         ctx.globalAlpha = activeStroke.opacity || 1;
         ctx.strokeStyle = activeStroke.color;
@@ -448,55 +611,104 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
           ctx.lineWidth = activeStroke.width * (activeStroke.points[i].pressure || 1);
           ctx.quadraticCurveTo(activeStroke.points[i].x, activeStroke.points[i].y, midX, midY);
         }
-        const lastPt = activeStroke.points[activeStroke.points.length - 1];
-        ctx.lineTo(lastPt.x, lastPt.y);
         ctx.stroke();
       }
 
+      // Draw active shape preview
       if (activeShape) {
         ctx.globalAlpha = activeShape.opacity || 1;
         ctx.strokeStyle = activeShape.color;
         ctx.lineWidth = activeShape.strokeWidth || 2;
-        ctx.fillStyle = activeShape.fillColor || 'transparent';
 
-        const { x, y, width: w, height: h, shapeType } = activeShape;
-        if (shapeType === 'rectangle') {
-          ctx.strokeRect(x, y, w, h);
-        } else if (shapeType === 'circle') {
+        if (activeShape.shapeType === 'rectangle') {
+          ctx.strokeRect(activeShape.x, activeShape.y, activeShape.width, activeShape.height);
+        } else if (activeShape.shapeType === 'circle') {
           ctx.beginPath();
-          ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+          ctx.ellipse(
+            activeShape.x + activeShape.width / 2,
+            activeShape.y + activeShape.height / 2,
+            Math.abs(activeShape.width / 2),
+            Math.abs(activeShape.height / 2),
+            0,
+            0,
+            Math.PI * 2
+          );
           ctx.stroke();
-        } else if (shapeType === 'line') {
+        } else if (activeShape.shapeType === 'sticky-note') {
+          ctx.fillStyle = '#fef3c7';
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineTo(x + w, y + h);
+          ctx.roundRect(activeShape.x, activeShape.y, activeShape.width || 200, activeShape.height || 160, 14);
+          ctx.fill();
           ctx.stroke();
         }
       }
 
-      // Render Remote Collaborator Cursors
+      // Draw Selection Bounding Box on Selected or Dragged Element
+      if (selectedElementId) {
+        const selectedEl = props.elements.find((el) => el.id === selectedElementId);
+        if (selectedEl && selectedEl.type !== 'stroke') {
+          ctx.save();
+          ctx.strokeStyle = '#6366f1';
+          ctx.lineWidth = 1.5 / props.scale;
+          ctx.setLineDash([4 / props.scale, 4 / props.scale]);
+
+          let selX = (selectedEl as TextElement | ShapeElement | StickyElement).x;
+          let selY = (selectedEl as TextElement | ShapeElement | StickyElement).y;
+          let selW = 100;
+          let selH = 50;
+
+          if (selectedEl.type === 'text') {
+            selW = Math.max(60, (selectedEl.text || '').length * (selectedEl.fontSize || 18) * 0.65) + 12;
+            selH = (selectedEl.fontSize || 18) * 1.5;
+            selX = selectedEl.x - 6;
+            selY = selectedEl.y - selH + 4;
+          } else if (selectedEl.type === 'shape' || selectedEl.type === 'sticky') {
+            selW = selectedEl.width || 200;
+            selH = selectedEl.height || 160;
+            selX = selectedEl.x;
+            selY = selectedEl.y;
+          }
+
+          ctx.strokeRect(selX, selY, selW, selH);
+
+          // Corner handles
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#ffffff';
+          ctx.strokeStyle = '#4f46e5';
+          const handleR = 4 / props.scale;
+          [[selX, selY], [selX + selW, selY], [selX, selY + selH], [selX + selW, selY + selH]].forEach(([hx, hy]) => {
+            ctx.beginPath();
+            ctx.arc(hx, hy, handleR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          });
+
+          ctx.restore();
+        }
+      }
+
+      // Draw Live Multiplayer Peer Cursors
       if (props.collaborators && props.collaborators.length > 0) {
         props.collaborators.forEach((c) => {
           ctx.save();
           ctx.translate(c.x, c.y);
+
           ctx.fillStyle = c.color;
           ctx.beginPath();
           ctx.moveTo(0, 0);
-          ctx.lineTo(0, 16);
-          ctx.lineTo(4, 12);
-          ctx.lineTo(9, 18);
-          ctx.lineTo(12, 16);
-          ctx.lineTo(7, 10);
-          ctx.lineTo(13, 10);
+          ctx.lineTo(14, 18);
+          ctx.lineTo(8, 18);
+          ctx.lineTo(12, 28);
+          ctx.lineTo(8, 29);
+          ctx.lineTo(4, 19);
+          ctx.lineTo(0, 22);
           ctx.closePath();
           ctx.fill();
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
 
           ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
-          const textMetrics = ctx.measureText(c.name);
-          const pillW = textMetrics.width + 16;
+          const pillW = ctx.measureText(c.name).width + 16;
           ctx.fillStyle = c.color;
           ctx.beginPath();
           ctx.roundRect(14, 12, pillW, 20, 8);
@@ -510,7 +722,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       ctx.restore();
     }
 
-    // 4. Telemetry (Frames per second & sub-millisecond draw latency)
+    // 4. Telemetry
     frameCountRef.current++;
     const now = performance.now();
     if (now - lastFpsTimeRef.current >= 500) {
@@ -520,9 +732,9 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       frameCountRef.current = 0;
       lastFpsTimeRef.current = now;
     }
-  }, [props, updateBufferCanvas]);
+  }, [props, updateBufferCanvas, selectedElementId]);
 
-  // Request Animation Frame Loop for continuous 120Hz tracking
+  // Request Animation Frame Loop
   useEffect(() => {
     let animId: number;
     const loop = () => {
@@ -545,7 +757,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     return () => window.removeEventListener('resize', handleResize);
   }, [renderCanvasFrame]);
 
-  // High-Polling Pointer Events (with 120Hz/240Hz Coalesced Event capture)
+  // Pointer Events with Dragging & Creation Facility
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -559,6 +771,27 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       return;
     }
 
+    // Check if user clicked on an existing text element or sticky note to drag it
+    const hitEl = hitTestElement(worldCoord.x, worldCoord.y);
+    if (hitEl && hitEl.type !== 'stroke') {
+      const hitTyped = hitEl as TextElement | ShapeElement | StickyElement;
+      draggingElementRef.current = {
+        id: hitTyped.id,
+        startX: hitTyped.x,
+        startY: hitTyped.y,
+        startMouseX: worldCoord.x,
+        startMouseY: worldCoord.y,
+        hasMoved: false,
+      };
+      setSelectedElementId(hitTyped.id);
+      setCursorStyle('move');
+      return;
+    }
+
+    // Deselect if clicked on empty canvas
+    setSelectedElementId(null);
+
+    // Tool Handlers
     if (props.activeTool === 'pen' || props.activeTool === 'pencil' || props.activeTool === 'highlighter') {
       const toolType = props.activeTool === 'pencil' ? props.activePencil : props.activePen;
       currentStrokeRef.current = {
@@ -573,21 +806,50 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         layerId: props.activeLayerId,
       };
     } else if (props.activeTool === 'shape') {
-      const isSticky = props.activeShape === 'sticky-note';
-      currentShapeRef.current = {
-        id: 'shape_' + Date.now(),
-        type: 'shape',
-        shapeType: props.activeShape,
-        x: worldCoord.x,
-        y: worldCoord.y,
-        width: isSticky ? 180 : 0,
-        height: isSticky ? 140 : 0,
-        color: props.color,
-        fillColor: isSticky ? '#fef3c7' : undefined,
-        strokeWidth: props.strokeWidth,
-        opacity: props.opacity,
-        layerId: props.activeLayerId,
-      };
+      if (props.activeShape === 'sticky-note') {
+        // Create new draggable sticky note directly on click
+        const newSticky: ShapeElement = {
+          id: 'sticky_' + Date.now(),
+          type: 'shape',
+          shapeType: 'sticky-note',
+          x: worldCoord.x - 100,
+          y: worldCoord.y - 40,
+          width: 200,
+          height: 160,
+          color: props.color,
+          fillColor: '#fef3c7',
+          strokeWidth: 2,
+          opacity: 1,
+          layerId: props.activeLayerId,
+        };
+        const updated = [...props.elements, newSticky];
+        pushToHistory(updated);
+        setSelectedElementId(newSticky.id);
+        draggingElementRef.current = {
+          id: newSticky.id,
+          startX: newSticky.x,
+          startY: newSticky.y,
+          startMouseX: worldCoord.x,
+          startMouseY: worldCoord.y,
+          hasMoved: false,
+        };
+        setCursorStyle('move');
+      } else {
+        currentShapeRef.current = {
+          id: 'shape_' + Date.now(),
+          type: 'shape',
+          shapeType: props.activeShape,
+          x: worldCoord.x,
+          y: worldCoord.y,
+          width: 0,
+          height: 0,
+          color: props.color,
+          fillColor: undefined,
+          strokeWidth: props.strokeWidth,
+          opacity: props.opacity,
+          layerId: props.activeLayerId,
+        };
+      }
     } else if (props.activeTool === 'text') {
       setActiveTextInput({
         x: worldCoord.x,
@@ -598,7 +860,50 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isPointerDownRef.current) return;
+    const worldCoord = screenToWorld(e.clientX, e.clientY);
+
+    // Update hover cursor when moving over draggable elements
+    if (!isPointerDownRef.current) {
+      const hoverHit = hitTestElement(worldCoord.x, worldCoord.y);
+      if (hoverHit) {
+        setCursorStyle('move');
+      } else if (props.activeTool === 'text') {
+        setCursorStyle('text');
+      } else if (props.isPanMode) {
+        setCursorStyle('grab');
+      } else if (props.activeTool === 'eraser') {
+        setCursorStyle('crosshair');
+      } else {
+        setCursorStyle('default');
+      }
+      return;
+    }
+
+    // Handle Active Element Dragging (Notes & Text)
+    if (draggingElementRef.current) {
+      const { id, startX, startY, startMouseX, startMouseY } = draggingElementRef.current;
+      const dx = worldCoord.x - startMouseX;
+      const dy = worldCoord.y - startMouseY;
+
+      if (Math.hypot(dx, dy) > 3) {
+        draggingElementRef.current.hasMoved = true;
+      }
+
+      const updated = props.elements.map((el) => {
+        if (el.id === id && el.type !== 'stroke') {
+          return {
+            ...el,
+            x: Math.round(startX + dx),
+            y: Math.round(startY + dy),
+          };
+        }
+        return el;
+      });
+
+      props.onElementsChange(updated);
+      isBufferDirtyRef.current = true;
+      return;
+    }
 
     // Pan canvas if in pan mode
     if (props.isPanMode || e.buttons === 4 || (dragStartRef.current && (props.isPanMode || e.button === 1))) {
@@ -615,7 +920,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       return;
     }
 
-    // 120Hz Coalesced Subpixel Events for Apple Pencil / Stylus / High-DPI Mouse
+    // 120Hz Drawing Strokes
     const targetStroke = currentStrokeRef.current;
     if (targetStroke) {
       const rawNative = e.nativeEvent as PointerEvent;
@@ -634,30 +939,35 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       }
     } else if (currentShapeRef.current && dragStartRef.current) {
       const startWorld = screenToWorld(dragStartRef.current.x, dragStartRef.current.y);
-      const currentWorld = screenToWorld(e.clientX, e.clientY);
-      const width = currentWorld.x - startWorld.x;
-      const height = currentWorld.y - startWorld.y;
+      const width = worldCoord.x - startWorld.x;
+      const height = worldCoord.y - startWorld.y;
 
       currentShapeRef.current = {
         ...currentShapeRef.current,
-        x: width < 0 ? currentWorld.x : startWorld.x,
-        y: height < 0 ? currentWorld.y : startWorld.y,
+        x: width < 0 ? worldCoord.x : startWorld.x,
+        y: height < 0 ? worldCoord.y : startWorld.y,
         width: Math.abs(width),
         height: Math.abs(height),
       };
     } else if (props.activeTool === 'eraser') {
-      const world = screenToWorld(e.clientX, e.clientY);
       const eraserRadius = props.activeEraser === 'large-eraser' ? 24 : 12;
 
       const remaining = props.elements.filter((el) => {
         if (el.type === 'stroke') {
-          return !el.points.some((p) => Math.hypot(p.x - world.x, p.y - world.y) < eraserRadius);
+          return !el.points.some((p) => Math.hypot(p.x - worldCoord.x, p.y - worldCoord.y) < eraserRadius);
         } else if (el.type === 'shape') {
           return !(
-            world.x >= el.x &&
-            world.x <= el.x + el.width &&
-            world.y >= el.y &&
-            world.y <= el.y + el.height
+            worldCoord.x >= el.x &&
+            worldCoord.x <= el.x + el.width &&
+            worldCoord.y >= el.y &&
+            worldCoord.y <= el.y + el.height
+          );
+        } else if (el.type === 'text') {
+          return !(
+            worldCoord.x >= el.x - 10 &&
+            worldCoord.x <= el.x + (el.text.length * el.fontSize * 0.65) &&
+            worldCoord.y >= el.y - el.fontSize &&
+            worldCoord.y <= el.y + 10
           );
         }
         return true;
@@ -682,12 +992,53 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     isPointerDownRef.current = false;
     dragStartRef.current = null;
 
+    // Handle Dragging Completion
+    if (draggingElementRef.current) {
+      const { id, hasMoved } = draggingElementRef.current;
+      draggingElementRef.current = null;
+
+      if (hasMoved) {
+        pushToHistory(props.elements);
+      } else {
+        // If clicked without dragging, open editor for quick editing
+        const clickedEl = props.elements.find((el) => el.id === id);
+        if (clickedEl) {
+          if (clickedEl.type === 'text') {
+            setActiveTextInput({
+              id: clickedEl.id,
+              x: clickedEl.x,
+              y: clickedEl.y,
+              text: clickedEl.text,
+            });
+          } else if (clickedEl.type === 'shape' && clickedEl.shapeType === 'sticky-note') {
+            setActiveStickyInput({
+              id: clickedEl.id,
+              x: clickedEl.x,
+              y: clickedEl.y,
+              text: (clickedEl as any).text || '',
+              width: clickedEl.width || 200,
+              height: clickedEl.height || 160,
+            });
+          } else if (clickedEl.type === 'sticky') {
+            setActiveStickyInput({
+              id: clickedEl.id,
+              x: clickedEl.x,
+              y: clickedEl.y,
+              text: clickedEl.text || '',
+              width: clickedEl.width || 200,
+              height: clickedEl.height || 160,
+            });
+          }
+        }
+      }
+      return;
+    }
+
     // Finalize In-Progress Stroke
     const finalStroke = currentStrokeRef.current;
     if (finalStroke && finalStroke.points.length > 1) {
       currentStrokeRef.current = null;
 
-      // Smart Shape Recognition check
       if (props.shapeAutoDetect) {
         const detected = detectSmartShape(finalStroke.points);
         if (detected && detected.shapeType) {
@@ -758,7 +1109,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       ref={containerRef}
       className="relative w-full h-full overflow-hidden select-none bg-slate-50 dark:bg-slate-950 will-change-transform transform-gpu"
       style={{
-        cursor: props.isPanMode ? 'grab' : props.activeTool === 'eraser' ? 'crosshair' : 'default',
+        cursor: cursorStyle,
         contain: 'layout paint size',
       }}
     >
@@ -784,6 +1135,40 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         </div>
       )}
 
+      {/* Floating Action Controls for Selected Draggable Element */}
+      {selectedElementId && (
+        (() => {
+          const selEl = props.elements.find((el) => el.id === selectedElementId);
+          if (!selEl || selEl.type === 'stroke') return null;
+          const typedEl = selEl as TextElement | ShapeElement | StickyElement;
+          const leftPx = typedEl.x * props.scale + props.panOffset.x;
+          const topPx = (typedEl.y - 36) * props.scale + props.panOffset.y;
+
+          return (
+            <div
+              className="absolute z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/90 text-white shadow-xl backdrop-blur-md border border-slate-700 animate-in fade-in zoom-in-95 text-xs font-semibold"
+              style={{ left: `${leftPx}px`, top: `${topPx}px` }}
+            >
+              <span className="flex items-center gap-1 text-slate-300">
+                <Move className="w-3 h-3 text-indigo-400" />
+                <span>Drag to Move</span>
+              </span>
+              <button
+                onClick={() => {
+                  const remaining = props.elements.filter((el) => el.id !== selectedElementId);
+                  pushToHistory(remaining);
+                  setSelectedElementId(null);
+                }}
+                className="p-1 hover:bg-rose-500/20 text-rose-400 rounded-lg transition-colors ml-1"
+                title="Delete Element"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        })()
+      )}
+
       {/* Inline Text Editor */}
       {activeTextInput && (
         <div
@@ -796,12 +1181,49 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
           <input
             autoFocus
             type="text"
-            placeholder="Type text..."
+            placeholder="Type text... (Press Enter or Click away)"
             value={activeTextInput.text}
             onChange={(e) => setActiveTextInput({ ...activeTextInput, text: e.target.value })}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 if (activeTextInput.text.trim()) {
+                  if (activeTextInput.id) {
+                    const updated = props.elements.map((el) =>
+                      el.id === activeTextInput.id ? { ...el, text: activeTextInput.text } : el
+                    );
+                    pushToHistory(updated);
+                  } else {
+                    const newEl: TextElement = {
+                      id: 'text_' + Date.now(),
+                      type: 'text',
+                      text: activeTextInput.text,
+                      x: activeTextInput.x,
+                      y: activeTextInput.y,
+                      color: props.color,
+                      fontSize: props.fontSize,
+                      fontFamily: props.fontFamily,
+                      bold: props.isBold,
+                      italic: props.isItalic,
+                      underline: props.isUnderline,
+                      align: props.textAlign,
+                      layerId: props.activeLayerId,
+                    };
+                    pushToHistory([...props.elements, newEl]);
+                  }
+                }
+                setActiveTextInput(null);
+              } else if (e.key === 'Escape') {
+                setActiveTextInput(null);
+              }
+            }}
+            onBlur={() => {
+              if (activeTextInput.text.trim()) {
+                if (activeTextInput.id) {
+                  const updated = props.elements.map((el) =>
+                    el.id === activeTextInput.id ? { ...el, text: activeTextInput.text } : el
+                  );
+                  pushToHistory(updated);
+                } else {
                   const newEl: TextElement = {
                     id: 'text_' + Date.now(),
                     type: 'text',
@@ -819,39 +1241,67 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
                   };
                   pushToHistory([...props.elements, newEl]);
                 }
-                setActiveTextInput(null);
-              } else if (e.key === 'Escape') {
-                setActiveTextInput(null);
-              }
-            }}
-            onBlur={() => {
-              if (activeTextInput.text.trim()) {
-                const newEl: TextElement = {
-                  id: 'text_' + Date.now(),
-                  type: 'text',
-                  text: activeTextInput.text,
-                  x: activeTextInput.x,
-                  y: activeTextInput.y,
-                  color: props.color,
-                  fontSize: props.fontSize,
-                  fontFamily: props.fontFamily,
-                  bold: props.isBold,
-                  italic: props.isItalic,
-                  underline: props.isUnderline,
-                  align: props.textAlign,
-                  layerId: props.activeLayerId,
-                };
-                pushToHistory([...props.elements, newEl]);
               }
               setActiveTextInput(null);
             }}
-            className="px-2 py-1 bg-white/90 dark:bg-slate-800/90 border border-indigo-500 rounded-lg shadow-lg text-slate-900 dark:text-white outline-hidden"
+            className="px-3 py-1.5 bg-white/95 dark:bg-slate-800/95 border-2 border-indigo-500 rounded-xl shadow-2xl text-slate-900 dark:text-white outline-hidden min-w-[140px]"
             style={{
               fontSize: `${props.fontSize}px`,
               fontFamily: props.fontFamily,
               color: props.color,
             }}
           />
+        </div>
+      )}
+
+      {/* Inline Sticky Note Editor Popover */}
+      {activeStickyInput && (
+        <div
+          className="absolute z-30"
+          style={{
+            left: `${activeStickyInput.x * props.scale + props.panOffset.x}px`,
+            top: `${activeStickyInput.y * props.scale + props.panOffset.y}px`,
+            width: `${activeStickyInput.width * props.scale}px`,
+            minHeight: `${activeStickyInput.height * props.scale}px`,
+          }}
+        >
+          <div className="p-3 bg-amber-100 dark:bg-amber-900/90 border-2 border-amber-500 rounded-2xl shadow-2xl flex flex-col gap-2">
+            <div className="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-200 border-b border-amber-300 dark:border-amber-700 pb-1.5">
+              <span>📌 Sticky Note Text</span>
+              <button
+                onClick={() => {
+                  const targetId = activeStickyInput.id;
+                  if (targetId) {
+                    const updated = props.elements.map((el) => {
+                      if (el.id === targetId) {
+                        return { ...el, text: activeStickyInput.text };
+                      }
+                      return el;
+                    });
+                    pushToHistory(updated);
+                  }
+                  setActiveStickyInput(null);
+                }}
+                className="p-1 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-lg text-emerald-700 dark:text-emerald-300"
+              >
+                <Check className="w-4 h-4" />
+              </button>
+            </div>
+
+            <textarea
+              autoFocus
+              placeholder="Write your study notes, reminders, or formulas here..."
+              value={activeStickyInput.text}
+              onChange={(e) => setActiveStickyInput({ ...activeStickyInput, text: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setActiveStickyInput(null);
+                }
+              }}
+              rows={4}
+              className="w-full p-2 bg-white/80 dark:bg-slate-900/80 rounded-xl border border-amber-300 dark:border-amber-700 text-xs text-slate-900 dark:text-slate-100 outline-hidden resize-none font-sans"
+            />
+          </div>
         </div>
       )}
     </div>
