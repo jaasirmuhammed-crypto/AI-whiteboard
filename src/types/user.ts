@@ -1,5 +1,6 @@
-﻿import { WhiteboardElement, BackgroundPattern } from './whiteboard';
+import { WhiteboardElement, BackgroundPattern } from './whiteboard';
 import { StudyMaterialsPackage } from './studyMaterial';
+import { UserPlanType, SubscriptionStatus } from './payment';
 
 export interface UserProfile {
   id: string;
@@ -9,6 +10,11 @@ export interface UserProfile {
   preferredLanguage: string;
   preferredTheme: 'light' | 'dark' | 'system';
   createdAt: string;
+  // Subscription & Token Allowance
+  plan: UserPlanType;
+  tokensRemaining: number;
+  subscriptionStatus: SubscriptionStatus;
+  subscriptionExpiresAt?: string;
 }
 
 export interface WhiteboardProject {

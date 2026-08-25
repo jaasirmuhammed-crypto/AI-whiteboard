@@ -1,0 +1,25 @@
+{
+  "name": "AI Whiteboard — Transform Notes Into Study Materials",
+  "short_name": "AI Whiteboard",
+  "description": "Write naturally on an interactive whiteboard. Let AI understand your handwritten notes and synthesize PowerPoint presentations, MCQs, and interactive mind maps in seconds.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#4f46e5",
+  "orientation": "any",
+  "categories": ["education", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/vite.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

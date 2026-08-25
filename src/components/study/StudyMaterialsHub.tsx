@@ -4,7 +4,11 @@ import {
   HelpCircle, 
   Network, 
   ArrowLeft, 
-  Lightbulb
+  Lightbulb,
+  Download,
+  MessageSquare,
+  Share2,
+  Sparkles
 } from 'lucide-react';
 import { StudyMaterialsPackage } from '../../types/studyMaterial';
 import { PPTViewer } from './PPTViewer';
@@ -13,6 +17,7 @@ import { MindMapViewer } from './MindMapViewer';
 import { useProject } from '../../context/ProjectContext';
 import { useI18n } from '../../i18n';
 import { TopicSearchGuideCard } from '../common/TopicSearchGuideCard';
+import { ExportHubModal } from '../common/ExportHubModal';
 
 interface StudyMaterialsHubProps {
   packageData: StudyMaterialsPackage;
@@ -24,6 +29,7 @@ export const StudyMaterialsHub: React.FC<StudyMaterialsHubProps> = ({ packageDat
 
   const [activeTab, setActiveTab] = useState<'ppt' | 'mcq' | 'mindmap'>('ppt');
   const [showSearchGuide, setShowSearchGuide] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8 animate-in fade-in duration-300">
@@ -63,16 +69,26 @@ export const StudyMaterialsHub: React.FC<StudyMaterialsHubProps> = ({ packageDat
               </div>
             )}
 
-            <h1 className="text-2xl sm:text-4xl font-extrabold font-brand tracking-tight">
-              {t.outputs.readyTitle}
+            <h1 className="text-2xl sm:text-3xl font-bold font-brand tracking-tight">
+              {t.outputs?.readyTitle || 'Generated AI Study Materials'}
             </h1>
             <p className="text-xs sm:text-sm text-indigo-200 max-w-xl leading-relaxed">
               {packageData.summary}
             </p>
           </div>
 
-          {/* Quick Keywords Badges & Official Link */}
-          <div className="flex flex-col items-end gap-2">
+          {/* Action Hub & Keywords Badges */}
+          <div className="flex flex-col items-end gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setExportModalOpen(true)}
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 text-white text-xs font-bold shadow-lg flex items-center gap-1.5 transition-all"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export Hub</span>
+              </button>
+            </div>
+
             <div className="flex flex-wrap justify-end gap-1.5 max-w-xs">
               {packageData.extractedKeywords.slice(0, 6).map((kw, i) => (
                 <span key={i} className="px-2.5 py-1 rounded-lg bg-white/10 text-white text-[11px] font-mono backdrop-blur-md">
@@ -138,6 +154,14 @@ export const StudyMaterialsHub: React.FC<StudyMaterialsHubProps> = ({ packageDat
             <span>Interactive Mind Map</span>
           </button>
         </div>
+
+        <button
+          onClick={() => setExportModalOpen(true)}
+          className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors"
+        >
+          <Download className="w-3.5 h-3.5 text-indigo-500" />
+          <span>Export All Formats</span>
+        </button>
       </div>
 
       {/* Active Tab View */}
@@ -151,6 +175,14 @@ export const StudyMaterialsHub: React.FC<StudyMaterialsHubProps> = ({ packageDat
       <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
         <TopicSearchGuideCard />
       </div>
+
+      {/* Export Hub Modal */}
+      <ExportHubModal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        studyPackage={packageData}
+      />
+
     </div>
   );
 };

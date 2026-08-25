@@ -11,18 +11,31 @@
     --font-mono: 'Fira Code', monospace;
   }
 
+  html {
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     font-family: var(--font-sans);
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+    background-color: #f8fafc;
   }
 
-  /* Prevent selection and browser pull-to-refresh on canvas */
+  .dark body {
+    background-color: #020617;
+  }
+
+  /* Prevent touch delay & selection on interactive canvas */
   canvas {
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
@@ -47,6 +60,17 @@
   font-family: var(--font-mono);
 }
 
+/* 120 FPS GPU Acceleration Utilities */
+.transform-gpu {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.will-change-transform {
+  will-change: transform;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -66,12 +90,13 @@
   background: rgba(156, 163, 175, 0.7);
 }
 
-/* Glassmorphism */
+/* Fast Glassmorphism with GPU compositing */
 .glass-panel {
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.4);
+  contain: paint;
 }
 
 .dark .glass-panel {
@@ -79,6 +104,7 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  contain: paint;
 }
 
 .glass-toolbar {
@@ -86,6 +112,7 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  transform: translateZ(0);
 }
 
 .dark .glass-toolbar {
@@ -93,6 +120,7 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  transform: translateZ(0);
 }
 
 /* Glow effects */
@@ -104,11 +132,12 @@
   box-shadow: 0 0 45px -5px rgba(129, 140, 248, 0.3);
 }
 
-/* Premium Button Interactive Animations */
+/* Premium 120 FPS Interactive Button Animations */
 .btn-interactive {
   position: relative;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.15s ease, background-color 0.15s ease;
   overflow: hidden;
+  transform: translateZ(0);
 }
 
 .btn-interactive:hover {
@@ -120,27 +149,9 @@
   transform: translateY(0px) scale(0.98);
 }
 
-.btn-interactive::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 150%;
-  height: 150%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 60%);
-  transform: translate(-50%, -50%) scale(0);
-  opacity: 0;
-  transition: transform 0.5s ease-out, opacity 0.3s ease-out;
-  pointer-events: none;
-}
-
-.btn-interactive:hover::after {
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 1;
-}
-
 .card-hover-effect {
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+  transform: translateZ(0);
 }
 
 .card-hover-effect:hover {
@@ -152,31 +163,33 @@
   box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.5);
 }
 
-/* Smooth wave pulse */
+/* Hardware accelerated animations */
 @keyframes subtle-float {
   0%, 100% {
-    transform: translateY(0px);
+    transform: translate3d(0, 0px, 0);
   }
   50% {
-    transform: translateY(-8px);
+    transform: translate3d(0, -8px, 0);
   }
 }
 
 .animate-subtle-float {
-  animation: subtle-float 6s ease-in-out infinite;
+  animation: subtle-float 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
 }
 
 @keyframes pulse-glow {
   0%, 100% {
     opacity: 0.6;
-    transform: scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
     opacity: 0.9;
-    transform: scale(1.03);
+    transform: translate3d(0, 0, 0) scale(1.03);
   }
 }
 
 .animate-pulse-glow {
-  animation: pulse-glow 4s ease-in-out infinite;
+  animation: pulse-glow 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform, opacity;
 }

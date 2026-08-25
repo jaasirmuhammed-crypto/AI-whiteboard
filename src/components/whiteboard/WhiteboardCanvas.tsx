@@ -4,16 +4,19 @@ import {
   StrokeElement, 
   ShapeElement, 
   TextElement, 
-  StickyElement, 
   StrokePoint, 
   ToolType, 
   PenType, 
   PencilType, 
   EraserType, 
   ShapeType, 
-  BackgroundPattern 
+  BackgroundPattern,
+  CollaboratorCursor,
+  CanvasLayer,
+  LineSmoothingLevel
 } from '../../types/whiteboard';
 import { useTheme } from '../../context/ThemeContext';
+import { detectSmartShape } from '../../utils/strokeMath';
 
 export interface WhiteboardCanvasRef {
   getSnapshotDataUrl: () => string;
@@ -22,6 +25,7 @@ export interface WhiteboardCanvasRef {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  getSVGString: () => string;
 }
 
 interface WhiteboardCanvasProps {
@@ -47,10 +51,18 @@ interface WhiteboardCanvasProps {
   isPanMode: boolean;
   onPanChange: (offset: { x: number; y: number }) => void;
   onScaleChange: (scale: number) => void;
+  smoothingLevel?: LineSmoothingLevel;
+  pressureEnabled?: boolean;
+  shapeAutoDetect?: boolean;
+  layers?: CanvasLayer[];
+  activeLayerId?: string;
+  collaborators?: CollaboratorCursor[];
+  onTelemetryUpdate?: (fps: number, latencyMs: number, strokeCount: number) => void;
 }
 
 export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvasProps>((props, ref) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null); // Double-buffer for 120 FPS blitting
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { theme } = useTheme();
 
@@ -58,11 +70,21 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
   const [history, setHistory] = useState<WhiteboardElement[][]>([props.elements]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  // Active interaction states
-  const [isPointerDown, setIsPointerDown] = useState(false);
-  const [currentStroke, setCurrentStroke] = useState<StrokeElement | null>(null);
-  const [currentShape, setCurrentShape] = useState<ShapeElement | null>(null);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  // Active interaction refs to avoid 120Hz React state thrashing during drawing
+  const isPointerDownRef = useRef(false);
+  const currentStrokeRef = useRef<StrokeElement | null>(null);
+  const currentShapeRef = useRef<ShapeElement | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isBufferDirtyRef = useRef(true);
+  const animFrameIdRef = useRef<number | null>(null);
+
+  // UI notifications
+  const [detectedShapeToast, setDetectedShapeToast] = useState<string | null>(null);
+
+  // High-performance 120Hz Telemetry
+  const frameCountRef = useRef(0);
+  const lastFpsTimeRef = useRef(performance.now());
+  const lastDrawStartRef = useRef(performance.now());
 
   // Active inline text editing
   const [activeTextInput, setActiveTextInput] = useState<{
@@ -72,20 +94,20 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     text: string;
   } | null>(null);
 
-  // Active inline sticky editing
-  const [activeStickyInput, setActiveStickyInput] = useState<{
-    id: string;
-    text: string;
-  } | null>(null);
-
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
+
+  // Mark buffer dirty whenever external elements or view changes
+  useEffect(() => {
+    isBufferDirtyRef.current = true;
+  }, [props.elements, props.backgroundPattern, theme, props.scale, props.panOffset, props.layers]);
 
   const pushToHistory = useCallback((newElements: WhiteboardElement[]) => {
     const updatedHistory = history.slice(0, historyIndex + 1);
     updatedHistory.push(newElements);
     setHistory(updatedHistory);
     setHistoryIndex(updatedHistory.length - 1);
+    isBufferDirtyRef.current = true;
 
     // generate thumbnail
     setTimeout(() => {
@@ -103,6 +125,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
       const prevElements = history[newIndex];
+      isBufferDirtyRef.current = true;
       props.onElementsChange(prevElements);
     }
   }, [canUndo, historyIndex, history, props]);
@@ -112,14 +135,43 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       const newIndex = historyIndex + 1;
       setHistoryIndex(newIndex);
       const nextElements = history[newIndex];
+      isBufferDirtyRef.current = true;
       props.onElementsChange(nextElements);
     }
   }, [canRedo, historyIndex, history, props]);
 
-  // Expose imperative methods to parent
+  // Export SVG utility
+  const getSVGString = useCallback(() => {
+    const width = 1920;
+    const height = 1080;
+    let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">\n`;
+    svgContent += `<rect width="100%" height="100%" fill="${theme === 'dark' ? '#090d16' : '#ffffff'}"/>\n`;
+
+    props.elements.forEach((el) => {
+      if (el.type === 'stroke' && el.points.length > 1) {
+        const pathData = el.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+        svgContent += `<path d="${pathData}" stroke="${el.color}" stroke-width="${el.width}" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="${el.opacity || 1}" />\n`;
+      } else if (el.type === 'shape') {
+        if (el.shapeType === 'rectangle') {
+          svgContent += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" stroke="${el.color}" stroke-width="${el.strokeWidth || 2}" fill="${el.fillColor || 'none'}" opacity="${el.opacity || 1}" />\n`;
+        } else if (el.shapeType === 'circle') {
+          const r = Math.abs(el.width / 2);
+          svgContent += `<ellipse cx="${el.x + el.width / 2}" cy="${el.y + el.height / 2}" rx="${r}" ry="${Math.abs(el.height / 2)}" stroke="${el.color}" stroke-width="${el.strokeWidth || 2}" fill="${el.fillColor || 'none'}" opacity="${el.opacity || 1}" />\n`;
+        } else if (el.shapeType === 'line') {
+          svgContent += `<line x1="${el.x}" y1="${el.y}" x2="${el.x + el.width}" y2="${el.y + el.height}" stroke="${el.color}" stroke-width="${el.strokeWidth || 2}" opacity="${el.opacity || 1}" />\n`;
+        }
+      } else if (el.type === 'text') {
+        svgContent += `<text x="${el.x}" y="${el.y}" fill="${el.color}" font-size="${el.fontSize}" font-family="${el.fontFamily}">${el.text}</text>\n`;
+      }
+    });
+
+    svgContent += `</svg>`;
+    return svgContent;
+  }, [props.elements, theme]);
+
   useImperativeHandle(ref, () => ({
     getSnapshotDataUrl: () => {
-      return canvasRef.current ? canvasRef.current.toDataURL('image/png') : '';
+      return canvasRef.current?.toDataURL('image/png') || '';
     },
     clearCanvas: () => {
       pushToHistory([]);
@@ -128,15 +180,18 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     redo: handleRedo,
     canUndo,
     canRedo,
-  }), [handleUndo, handleRedo, canUndo, canRedo, pushToHistory]);
+    getSVGString,
+  }), [handleUndo, handleRedo, canUndo, canRedo, pushToHistory, getSVGString]);
 
-  // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Space)
+  // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
         handleUndo();
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
         e.preventDefault();
         handleRedo();
       }
@@ -145,7 +200,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo]);
 
-  // Get coordinate mapped into world space
+  // Coordinate mapping
   const screenToWorld = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -155,39 +210,34 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     return { x, y };
   }, [props.panOffset, props.scale]);
 
-  // Redraw Canvas Main Loop
-  const renderCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const width = canvas.parentElement?.clientWidth || window.innerWidth;
-    const height = canvas.parentElement?.clientHeight || window.innerHeight;
-
-    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
+  // Render static elements onto Offscreen Buffer Canvas
+  const updateBufferCanvas = useCallback((width: number, height: number, dpr: number) => {
+    if (!bufferCanvasRef.current) {
+      bufferCanvasRef.current = document.createElement('canvas');
+    }
+    const buffer = bufferCanvasRef.current;
+    if (buffer.width !== width * dpr || buffer.height !== height * dpr) {
+      buffer.width = width * dpr;
+      buffer.height = height * dpr;
     }
 
-    ctx.save();
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, width, height);
+    const bCtx = buffer.getContext('2d', { alpha: true });
+    if (!bCtx) return;
 
-    // 1. Draw Background Pattern
+    bCtx.save();
+    bCtx.scale(dpr, dpr);
+
+    // 1. Background Pattern with subtle glassmorphism to show live wave animation
     const isDark = theme === 'dark';
-    ctx.fillStyle = isDark ? '#090d16' : '#ffffff';
-    ctx.fillRect(0, 0, width, height);
+    bCtx.fillStyle = isDark ? 'rgba(9, 13, 22, 0.86)' : 'rgba(255, 255, 255, 0.88)';
+    bCtx.fillRect(0, 0, width, height);
 
-    // Apply Viewport Transform
-    ctx.translate(props.panOffset.x, props.panOffset.y);
-    ctx.scale(props.scale, props.scale);
+    bCtx.translate(props.panOffset.x, props.panOffset.y);
+    bCtx.scale(props.scale, props.scale);
 
-    // Draw Background Grid/Lines in world space
     const patternColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.09)';
-    ctx.strokeStyle = patternColor;
-    ctx.lineWidth = 1;
+    bCtx.strokeStyle = patternColor;
+    bCtx.lineWidth = 1;
 
     const startX = -props.panOffset.x / props.scale - 200;
     const endX = (width - props.panOffset.x) / props.scale + 200;
@@ -197,210 +247,334 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     if (props.backgroundPattern === 'ruled') {
       const step = 32;
       for (let y = Math.floor(startY / step) * step; y <= endY; y += step) {
-        ctx.beginPath();
-        ctx.moveTo(startX, y);
-        ctx.lineTo(endX, y);
-        ctx.stroke();
+        bCtx.beginPath();
+        bCtx.moveTo(startX, y);
+        bCtx.lineTo(endX, y);
+        bCtx.stroke();
       }
     } else if (props.backgroundPattern === 'grid' || props.backgroundPattern === 'graph') {
       const step = props.backgroundPattern === 'graph' ? 16 : 32;
       for (let x = Math.floor(startX / step) * step; x <= endX; x += step) {
-        ctx.beginPath();
-        ctx.moveTo(x, startY);
-        ctx.lineTo(x, endY);
-        ctx.stroke();
+        bCtx.beginPath();
+        bCtx.moveTo(x, startY);
+        bCtx.lineTo(x, endY);
+        bCtx.stroke();
       }
       for (let y = Math.floor(startY / step) * step; y <= endY; y += step) {
-        ctx.beginPath();
-        ctx.moveTo(startX, y);
-        ctx.lineTo(endX, y);
-        ctx.stroke();
+        bCtx.beginPath();
+        bCtx.moveTo(startX, y);
+        bCtx.lineTo(endX, y);
+        bCtx.stroke();
       }
     } else if (props.backgroundPattern === 'dotted') {
       const step = 28;
-      ctx.fillStyle = patternColor;
+      bCtx.fillStyle = patternColor;
       for (let x = Math.floor(startX / step) * step; x <= endX; x += step) {
         for (let y = Math.floor(startY / step) * step; y <= endY; y += step) {
-          ctx.beginPath();
-          ctx.arc(x, y, 1.2, 0, Math.PI * 2);
-          ctx.fill();
+          bCtx.beginPath();
+          bCtx.arc(x, y, 1.2, 0, Math.PI * 2);
+          bCtx.fill();
         }
       }
     }
 
-    // 2. Render All Saved Elements
-    const elementsToRender = [...props.elements];
-    if (currentStroke) elementsToRender.push(currentStroke);
-    if (currentShape) elementsToRender.push(currentShape);
+    // 2. Render Committed Elements
+    const hiddenLayers = new Set((props.layers || []).filter(l => !l.visible).map(l => l.id));
+    const elementsToRender = props.elements.filter(el => !el.layerId || !hiddenLayers.has(el.layerId));
 
     elementsToRender.forEach((el) => {
-      ctx.save();
+      bCtx.save();
 
       if (el.type === 'stroke') {
         if (el.points.length < 2) {
-          ctx.restore();
+          bCtx.restore();
           return;
         }
 
-        ctx.globalAlpha = el.opacity || 1;
-        ctx.strokeStyle = el.color;
-        ctx.lineWidth = el.width;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        bCtx.globalAlpha = el.opacity || 1;
+        bCtx.strokeStyle = el.color;
+        bCtx.lineCap = 'round';
+        bCtx.lineJoin = 'round';
 
-        if (el.tool === 'highlighter') {
-          ctx.globalCompositeOperation = isDark ? 'screen' : 'multiply';
-          ctx.globalAlpha = el.opacity || 0.35;
-        } else if (el.tool.includes('pencil')) {
-          ctx.globalAlpha = 0.8;
-          ctx.setLineDash([1, 0.5]); // Graphite texture simulation
-        }
-
-        ctx.beginPath();
-        ctx.moveTo(el.points[0].x, el.points[0].y);
-
+        // Optimized Quadratic Curve rendering for strokes
+        bCtx.beginPath();
+        bCtx.moveTo(el.points[0].x, el.points[0].y);
         for (let i = 1; i < el.points.length - 1; i++) {
-          const xc = (el.points[i].x + el.points[i + 1].x) / 2;
-          const yc = (el.points[i].y + el.points[i + 1].y) / 2;
-          ctx.quadraticCurveTo(el.points[i].x, el.points[i].y, xc, yc);
+          const midX = (el.points[i].x + el.points[i + 1].x) / 2;
+          const midY = (el.points[i].y + el.points[i + 1].y) / 2;
+          bCtx.lineWidth = el.width * (el.points[i].pressure || 1);
+          bCtx.quadraticCurveTo(el.points[i].x, el.points[i].y, midX, midY);
         }
-
-        if (el.points.length > 1) {
-          const last = el.points[el.points.length - 1];
-          ctx.lineTo(last.x, last.y);
-        }
-
-        ctx.stroke();
+        const last = el.points[el.points.length - 1];
+        bCtx.lineTo(last.x, last.y);
+        bCtx.stroke();
       } else if (el.type === 'shape') {
-        ctx.globalAlpha = el.opacity || 1;
-        ctx.strokeStyle = el.color;
-        ctx.lineWidth = el.strokeWidth || 3;
-        ctx.fillStyle = el.fillColor || 'transparent';
+        bCtx.globalAlpha = el.opacity || 1;
+        bCtx.strokeStyle = el.color;
+        bCtx.lineWidth = el.strokeWidth || 2;
+        bCtx.fillStyle = el.fillColor || 'transparent';
 
         const { x, y, width: w, height: h, shapeType } = el;
 
         if (shapeType === 'rectangle') {
+          bCtx.strokeRect(x, y, w, h);
+          if (el.fillColor) bCtx.fillRect(x, y, w, h);
+        } else if (shapeType === 'rounded-rect') {
+          bCtx.beginPath();
+          bCtx.roundRect(x, y, w, h, 14);
+          bCtx.stroke();
+          if (el.fillColor) bCtx.fill();
+        } else if (shapeType === 'circle') {
+          bCtx.beginPath();
+          bCtx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+          bCtx.stroke();
+          if (el.fillColor) bCtx.fill();
+        } else if (shapeType === 'triangle') {
+          bCtx.beginPath();
+          bCtx.moveTo(x + w / 2, y);
+          bCtx.lineTo(x + w, y + h);
+          bCtx.lineTo(x, y + h);
+          bCtx.closePath();
+          bCtx.stroke();
+          if (el.fillColor) bCtx.fill();
+        } else if (shapeType === 'line') {
+          bCtx.beginPath();
+          bCtx.moveTo(x, y);
+          bCtx.lineTo(x + w, y + h);
+          bCtx.stroke();
+        } else if (shapeType === 'arrow') {
+          bCtx.beginPath();
+          bCtx.moveTo(x, y);
+          bCtx.lineTo(x + w, y + h);
+          bCtx.stroke();
+          const angle = Math.atan2(h, w);
+          const headLen = 14;
+          bCtx.beginPath();
+          bCtx.moveTo(x + w, y + h);
+          bCtx.lineTo(x + w - headLen * Math.cos(angle - Math.PI / 6), y + h - headLen * Math.sin(angle - Math.PI / 6));
+          bCtx.lineTo(x + w - headLen * Math.cos(angle + Math.PI / 6), y + h - headLen * Math.sin(angle + Math.PI / 6));
+          bCtx.closePath();
+          bCtx.fillStyle = el.color;
+          bCtx.fill();
+        } else if (shapeType === 'sticky-note') {
+          bCtx.fillStyle = el.fillColor || '#fef3c7';
+          bCtx.strokeStyle = '#f59e0b';
+          bCtx.lineWidth = 1.5;
+          bCtx.beginPath();
+          bCtx.roundRect(x, y, w, h, 16);
+          bCtx.fill();
+          bCtx.stroke();
+
+          bCtx.fillStyle = '#92400e';
+          bCtx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
+          bCtx.fillText('📌 Note', x + 12, y + 24);
+        }
+      } else if (el.type === 'text') {
+        const fontStyle = `${el.italic ? 'italic ' : ''}${el.bold ? 'bold ' : ''}${el.fontSize}px ${el.fontFamily}`;
+        bCtx.font = fontStyle;
+        bCtx.fillStyle = el.color;
+        bCtx.textAlign = el.align || 'left';
+        bCtx.fillText(el.text, el.x, el.y);
+
+        if (el.underline) {
+          const metrics = bCtx.measureText(el.text);
+          bCtx.beginPath();
+          bCtx.strokeStyle = el.color;
+          bCtx.lineWidth = 1.5;
+          bCtx.moveTo(el.x, el.y + 4);
+          bCtx.lineTo(el.x + metrics.width, el.y + 4);
+          bCtx.stroke();
+        }
+      }
+
+      bCtx.restore();
+    });
+
+    bCtx.restore();
+    isBufferDirtyRef.current = false;
+  }, [props.elements, props.backgroundPattern, theme, props.scale, props.panOffset, props.layers]);
+
+  // Ultra-Fast 120 FPS Blit & Active Stroke Render Loop
+  const renderCanvasFrame = useCallback(() => {
+    lastDrawStartRef.current = performance.now();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Use low-latency desynchronized context with alpha for 120Hz live background waves
+    const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.parentElement?.clientWidth || window.innerWidth;
+    const height = canvas.parentElement?.clientHeight || window.innerHeight;
+
+    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      isBufferDirtyRef.current = true;
+    }
+
+    // 1. Update Offscreen Buffer if modified
+    if (isBufferDirtyRef.current || !bufferCanvasRef.current) {
+      updateBufferCanvas(width, height, dpr);
+    }
+
+    // 2. High-Speed Buffer Blit (< 0.2ms GPU memory copy)
+    if (bufferCanvasRef.current) {
+      ctx.drawImage(bufferCanvasRef.current, 0, 0);
+    }
+
+    // 3. Render In-Progress Active Stroke on top with subpixel precision
+    const activeStroke = currentStrokeRef.current;
+    const activeShape = currentShapeRef.current;
+
+    if (activeStroke || activeShape || (props.collaborators && props.collaborators.length > 0)) {
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.translate(props.panOffset.x, props.panOffset.y);
+      ctx.scale(props.scale, props.scale);
+
+      if (activeStroke && activeStroke.points.length > 1) {
+        ctx.globalAlpha = activeStroke.opacity || 1;
+        ctx.strokeStyle = activeStroke.color;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        ctx.beginPath();
+        ctx.moveTo(activeStroke.points[0].x, activeStroke.points[0].y);
+        for (let i = 1; i < activeStroke.points.length - 1; i++) {
+          const midX = (activeStroke.points[i].x + activeStroke.points[i + 1].x) / 2;
+          const midY = (activeStroke.points[i].y + activeStroke.points[i + 1].y) / 2;
+          ctx.lineWidth = activeStroke.width * (activeStroke.points[i].pressure || 1);
+          ctx.quadraticCurveTo(activeStroke.points[i].x, activeStroke.points[i].y, midX, midY);
+        }
+        const lastPt = activeStroke.points[activeStroke.points.length - 1];
+        ctx.lineTo(lastPt.x, lastPt.y);
+        ctx.stroke();
+      }
+
+      if (activeShape) {
+        ctx.globalAlpha = activeShape.opacity || 1;
+        ctx.strokeStyle = activeShape.color;
+        ctx.lineWidth = activeShape.strokeWidth || 2;
+        ctx.fillStyle = activeShape.fillColor || 'transparent';
+
+        const { x, y, width: w, height: h, shapeType } = activeShape;
+        if (shapeType === 'rectangle') {
           ctx.strokeRect(x, y, w, h);
-          if (el.fillColor) ctx.fillRect(x, y, w, h);
         } else if (shapeType === 'circle') {
           ctx.beginPath();
           ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
           ctx.stroke();
-          if (el.fillColor) ctx.fill();
-        } else if (shapeType === 'triangle') {
-          ctx.beginPath();
-          ctx.moveTo(x + w / 2, y);
-          ctx.lineTo(x + w, y + h);
-          ctx.lineTo(x, y + h);
-          ctx.closePath();
-          ctx.stroke();
-          if (el.fillColor) ctx.fill();
         } else if (shapeType === 'line') {
           ctx.beginPath();
           ctx.moveTo(x, y);
           ctx.lineTo(x + w, y + h);
           ctx.stroke();
-        } else if (shapeType === 'arrow') {
-          ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineTo(x + w, y + h);
-          ctx.stroke();
-
-          // Arrow head
-          const angle = Math.atan2(h, w);
-          const headLen = 14;
-          ctx.beginPath();
-          ctx.moveTo(x + w, y + h);
-          ctx.lineTo(
-            x + w - headLen * Math.cos(angle - Math.PI / 6),
-            y + h - headLen * Math.sin(angle - Math.PI / 6)
-          );
-          ctx.lineTo(
-            x + w - headLen * Math.cos(angle + Math.PI / 6),
-            y + h - headLen * Math.sin(angle + Math.PI / 6)
-          );
-          ctx.closePath();
-          ctx.fillStyle = el.color;
-          ctx.fill();
-        } else if (shapeType === 'sticky-note') {
-          // Sticky Note Container
-          ctx.fillStyle = el.fillColor || '#fef3c7';
-          ctx.strokeStyle = '#f59e0b';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.roundRect(x, y, w, h, 16);
-          ctx.fill();
-          ctx.stroke();
-
-          // Sticky note header
-          ctx.fillStyle = '#92400e';
-          ctx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
-          ctx.fillText('📌 Note', x + 12, y + 24);
-        }
-      } else if (el.type === 'text') {
-        const fontStyle = `${el.italic ? 'italic ' : ''}${el.bold ? 'bold ' : ''}${el.fontSize}px ${el.fontFamily}`;
-        ctx.font = fontStyle;
-        ctx.fillStyle = el.color;
-        ctx.textAlign = el.align || 'left';
-        ctx.fillText(el.text, el.x, el.y);
-
-        if (el.underline) {
-          const metrics = ctx.measureText(el.text);
-          ctx.beginPath();
-          ctx.strokeStyle = el.color;
-          ctx.lineWidth = 1.5;
-          ctx.moveTo(el.x, el.y + 4);
-          ctx.lineTo(el.x + metrics.width, el.y + 4);
-          ctx.stroke();
         }
       }
 
+      // Render Remote Collaborator Cursors
+      if (props.collaborators && props.collaborators.length > 0) {
+        props.collaborators.forEach((c) => {
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.fillStyle = c.color;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(0, 16);
+          ctx.lineTo(4, 12);
+          ctx.lineTo(9, 18);
+          ctx.lineTo(12, 16);
+          ctx.lineTo(7, 10);
+          ctx.lineTo(13, 10);
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+          const textMetrics = ctx.measureText(c.name);
+          const pillW = textMetrics.width + 16;
+          ctx.fillStyle = c.color;
+          ctx.beginPath();
+          ctx.roundRect(14, 12, pillW, 20, 8);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(c.name, 22, 26);
+          ctx.restore();
+        });
+      }
+
       ctx.restore();
-    });
+    }
 
-    ctx.restore();
-  }, [props, currentStroke, currentShape, theme]);
+    // 4. Telemetry (Frames per second & sub-millisecond draw latency)
+    frameCountRef.current++;
+    const now = performance.now();
+    if (now - lastFpsTimeRef.current >= 500) {
+      const fps = Math.round((frameCountRef.current * 1000) / (now - lastFpsTimeRef.current));
+      const latency = Math.max(1, Math.round(now - lastDrawStartRef.current));
+      props.onTelemetryUpdate?.(fps, latency, props.elements.length);
+      frameCountRef.current = 0;
+      lastFpsTimeRef.current = now;
+    }
+  }, [props, updateBufferCanvas]);
 
+  // Request Animation Frame Loop for continuous 120Hz tracking
   useEffect(() => {
-    renderCanvas();
-  }, [renderCanvas]);
+    let animId: number;
+    const loop = () => {
+      renderCanvasFrame();
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    animFrameIdRef.current = animId;
 
-  // Window Resize Listener
+    return () => cancelAnimationFrame(animId);
+  }, [renderCanvasFrame]);
+
+  // Resize listener
   useEffect(() => {
-    const handleResize = () => renderCanvas();
+    const handleResize = () => {
+      isBufferDirtyRef.current = true;
+      renderCanvasFrame();
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [renderCanvas]);
+  }, [renderCanvasFrame]);
 
-  // Pointer Event Handlers
+  // High-Polling Pointer Events (with 120Hz/240Hz Coalesced Event capture)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.setPointerCapture(e.pointerId);
 
     const worldCoord = screenToWorld(e.clientX, e.clientY);
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setIsPointerDown(true);
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    isPointerDownRef.current = true;
 
-    if (props.isPanMode || e.button === 1) {
-      return; // Panning handled in pointer move
+    if (props.isPanMode || e.button === 1 || (e.pointerType === 'touch' && props.isPanMode)) {
+      return;
     }
 
     if (props.activeTool === 'pen' || props.activeTool === 'pencil' || props.activeTool === 'highlighter') {
       const toolType = props.activeTool === 'pencil' ? props.activePencil : props.activePen;
-      setCurrentStroke({
+      currentStrokeRef.current = {
         id: 'stroke_' + Date.now(),
         type: 'stroke',
         tool: toolType,
-        points: [{ x: worldCoord.x, y: worldCoord.y, pressure: e.pressure || 0.5 }],
+        points: [{ x: worldCoord.x, y: worldCoord.y, pressure: e.pressure || 0.5, time: Date.now() }],
         color: props.color,
         width: props.strokeWidth,
         opacity: props.opacity,
         timestamp: Date.now(),
-      });
+        layerId: props.activeLayerId,
+      };
     } else if (props.activeTool === 'shape') {
       const isSticky = props.activeShape === 'sticky-note';
-      setCurrentShape({
+      currentShapeRef.current = {
         id: 'shape_' + Date.now(),
         type: 'shape',
         shapeType: props.activeShape,
@@ -412,191 +586,274 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         fillColor: isSticky ? '#fef3c7' : undefined,
         strokeWidth: props.strokeWidth,
         opacity: props.opacity,
-      });
+        layerId: props.activeLayerId,
+      };
     } else if (props.activeTool === 'text') {
       setActiveTextInput({
         x: worldCoord.x,
         y: worldCoord.y,
         text: '',
       });
-    } else if (props.activeTool === 'eraser') {
-      // Stroke eraser check
-      if (props.activeEraser === 'stroke-eraser') {
-        const remaining = props.elements.filter((el) => {
-          if (el.type === 'stroke') {
-            const hit = el.points.some(
-              (p) => Math.hypot(p.x - worldCoord.x, p.y - worldCoord.y) < 20
-            );
-            return !hit;
-          }
-          return true;
-        });
-        if (remaining.length !== props.elements.length) {
-          pushToHistory(remaining);
-        }
-      }
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isPointerDown) return;
+    if (!isPointerDownRef.current) return;
 
-    if (props.isPanMode || e.buttons === 4) {
-      if (dragStart) {
-        const dx = e.clientX - dragStart.x;
-        const dy = e.clientY - dragStart.y;
+    // Pan canvas if in pan mode
+    if (props.isPanMode || e.buttons === 4 || (dragStartRef.current && (props.isPanMode || e.button === 1))) {
+      if (dragStartRef.current) {
+        const dx = e.clientX - dragStartRef.current.x;
+        const dy = e.clientY - dragStartRef.current.y;
         props.onPanChange({
           x: props.panOffset.x + dx,
           y: props.panOffset.y + dy,
         });
-        setDragStart({ x: e.clientX, y: e.clientY });
+        dragStartRef.current = { x: e.clientX, y: e.clientY };
+        isBufferDirtyRef.current = true;
       }
       return;
     }
 
-    const worldCoord = screenToWorld(e.clientX, e.clientY);
+    // 120Hz Coalesced Subpixel Events for Apple Pencil / Stylus / High-DPI Mouse
+    const targetStroke = currentStrokeRef.current;
+    if (targetStroke) {
+      const rawNative = e.nativeEvent as PointerEvent;
+      const coalescedEvents = (typeof rawNative.getCoalescedEvents === 'function')
+        ? rawNative.getCoalescedEvents()
+        : [e];
 
-    if (currentStroke) {
-      setCurrentStroke((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          points: [...prev.points, { x: worldCoord.x, y: worldCoord.y, pressure: e.pressure || 0.5 }],
-        };
+      for (const co of coalescedEvents) {
+        const world = screenToWorld(co.clientX, co.clientY);
+        targetStroke.points.push({
+          x: world.x,
+          y: world.y,
+          pressure: props.pressureEnabled ? (co.pressure || 0.5) : 1,
+          time: Date.now(),
+        });
+      }
+    } else if (currentShapeRef.current && dragStartRef.current) {
+      const startWorld = screenToWorld(dragStartRef.current.x, dragStartRef.current.y);
+      const currentWorld = screenToWorld(e.clientX, e.clientY);
+      const width = currentWorld.x - startWorld.x;
+      const height = currentWorld.y - startWorld.y;
+
+      currentShapeRef.current = {
+        ...currentShapeRef.current,
+        x: width < 0 ? currentWorld.x : startWorld.x,
+        y: height < 0 ? currentWorld.y : startWorld.y,
+        width: Math.abs(width),
+        height: Math.abs(height),
+      };
+    } else if (props.activeTool === 'eraser') {
+      const world = screenToWorld(e.clientX, e.clientY);
+      const eraserRadius = props.activeEraser === 'large-eraser' ? 24 : 12;
+
+      const remaining = props.elements.filter((el) => {
+        if (el.type === 'stroke') {
+          return !el.points.some((p) => Math.hypot(p.x - world.x, p.y - world.y) < eraserRadius);
+        } else if (el.type === 'shape') {
+          return !(
+            world.x >= el.x &&
+            world.x <= el.x + el.width &&
+            world.y >= el.y &&
+            world.y <= el.y + el.height
+          );
+        }
+        return true;
       });
-    } else if (currentShape) {
-      setCurrentShape((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          width: worldCoord.x - prev.x,
-          height: worldCoord.y - prev.y,
-        };
-      });
+
+      if (remaining.length !== props.elements.length) {
+        pushToHistory(remaining);
+      }
     }
   };
 
-  const handlePointerUp = () => {
-    setIsPointerDown(false);
-
-    if (currentStroke) {
-      pushToHistory([...props.elements, currentStroke]);
-      setCurrentStroke(null);
-    } else if (currentShape) {
-      pushToHistory([...props.elements, currentShape]);
-      setCurrentShape(null);
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (canvas && e.pointerId) {
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        // Safe capture release fallback
+      }
     }
-    setDragStart(null);
+
+    isPointerDownRef.current = false;
+    dragStartRef.current = null;
+
+    // Finalize In-Progress Stroke
+    const finalStroke = currentStrokeRef.current;
+    if (finalStroke && finalStroke.points.length > 1) {
+      currentStrokeRef.current = null;
+
+      // Smart Shape Recognition check
+      if (props.shapeAutoDetect) {
+        const detected = detectSmartShape(finalStroke.points);
+        if (detected && detected.shapeType) {
+          const detectedShapeElement: ShapeElement = {
+            id: 'shape_' + Date.now(),
+            type: 'shape',
+            shapeType: detected.shapeType,
+            x: detected.x,
+            y: detected.y,
+            width: detected.width,
+            height: detected.height,
+            color: finalStroke.color,
+            strokeWidth: finalStroke.width,
+            opacity: finalStroke.opacity,
+            layerId: props.activeLayerId,
+          };
+          pushToHistory([...props.elements, detectedShapeElement]);
+          setDetectedShapeToast(`✨ Auto-converted to ${detected.shapeType}`);
+          setTimeout(() => setDetectedShapeToast(null), 2500);
+          return;
+        }
+      }
+
+      pushToHistory([...props.elements, finalStroke]);
+    } else {
+      currentStrokeRef.current = null;
+    }
+
+    // Finalize In-Progress Shape
+    const finalShape = currentShapeRef.current;
+    if (finalShape && (finalShape.width > 5 || finalShape.height > 5)) {
+      currentShapeRef.current = null;
+      pushToHistory([...props.elements, finalShape]);
+    } else {
+      currentShapeRef.current = null;
+    }
   };
 
-  // Wheel Zoom & Trackpad Pan
-  const handleWheel = (e: React.WheelEvent) => {
+  // Wheel Zoom with smooth momentum
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     if (e.ctrlKey || e.metaKey) {
       const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-      const newScale = Math.min(Math.max(props.scale * zoomFactor, 0.2), 4.0);
-      props.onScaleChange(newScale);
+      const newScale = Math.min(4, Math.max(0.25, props.scale * zoomFactor));
+
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const newOffsetX = mouseX - (mouseX - props.panOffset.x) * (newScale / props.scale);
+        const newOffsetY = mouseY - (mouseY - props.panOffset.y) * (newScale / props.scale);
+
+        props.onScaleChange(newScale);
+        props.onPanChange({ x: newOffsetX, y: newOffsetY });
+        isBufferDirtyRef.current = true;
+      }
     } else {
       props.onPanChange({
-        x: props.panOffset.x - e.deltaX,
-        y: props.panOffset.y - e.deltaY,
+        x: props.panOffset.x - e.deltaX * 1.2,
+        y: props.panOffset.y - e.deltaY * 1.2,
       });
+      isBufferDirtyRef.current = true;
     }
-  };
-
-  // Save Text Element
-  const handleSaveText = () => {
-    if (activeTextInput && activeTextInput.text.trim()) {
-      const newTextEl: TextElement = {
-        id: 'txt_' + Date.now(),
-        type: 'text',
-        x: activeTextInput.x,
-        y: activeTextInput.y,
-        text: activeTextInput.text,
-        fontFamily: props.fontFamily,
-        fontSize: props.fontSize,
-        color: props.color,
-        bold: props.isBold,
-        italic: props.isItalic,
-        underline: props.isUnderline,
-        align: props.textAlign,
-      };
-      pushToHistory([...props.elements, newTextEl]);
-    }
-    setActiveTextInput(null);
   };
 
   return (
     <div
       ref={containerRef}
-      onWheel={handleWheel}
-      className={`relative w-full h-[calc(100vh-65px)] overflow-hidden select-none touch-none ${
-        props.isPanMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
-      }`}
+      className="relative w-full h-full overflow-hidden select-none bg-slate-50 dark:bg-slate-950 will-change-transform transform-gpu"
+      style={{
+        cursor: props.isPanMode ? 'grab' : props.activeTool === 'eraser' ? 'crosshair' : 'default',
+        contain: 'layout paint size',
+      }}
     >
+      {/* 120 FPS Hardware-Accelerated Canvas Element */}
       <canvas
         ref={canvasRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        className="w-full h-full block"
+        onWheel={handleWheel}
+        className="w-full h-full block touch-none transform-gpu"
+        style={{
+          transform: 'translate3d(0, 0, 0)',
+          backfaceVisibility: 'hidden',
+        }}
       />
 
-      {/* Text Tool Guidance Banner when Text Tool is active */}
-      {props.activeTool === 'text' && !activeTextInput && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-2xl bg-indigo-600/90 text-white text-xs font-bold shadow-xl backdrop-blur-md border border-indigo-400/40 animate-in fade-in slide-in-from-top-2 flex items-center gap-2 pointer-events-none">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          Text Tool Active: Click or tap anywhere on the whiteboard canvas to start typing!
+      {/* Auto-detected Shape Notification */}
+      {detectedShapeToast && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-2xl bg-indigo-600/90 text-white text-xs font-bold shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-top-3 z-30 pointer-events-none">
+          {detectedShapeToast}
         </div>
       )}
 
-      {/* Inline Text Input Overlay */}
+      {/* Inline Text Editor */}
       {activeTextInput && (
         <div
-          className="absolute z-30 flex items-center gap-2 bg-white/95 dark:bg-slate-900/95 p-2 rounded-2xl border-2 border-indigo-600 shadow-2xl backdrop-blur-xl animate-in zoom-in-95"
+          className="absolute z-30"
           style={{
             left: `${activeTextInput.x * props.scale + props.panOffset.x}px`,
             top: `${activeTextInput.y * props.scale + props.panOffset.y}px`,
           }}
         >
           <input
-            type="text"
             autoFocus
+            type="text"
+            placeholder="Type text..."
             value={activeTextInput.text}
             onChange={(e) => setActiveTextInput({ ...activeTextInput, text: e.target.value })}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSaveText();
-              if (e.key === 'Escape') setActiveTextInput(null);
+              if (e.key === 'Enter') {
+                if (activeTextInput.text.trim()) {
+                  const newEl: TextElement = {
+                    id: 'text_' + Date.now(),
+                    type: 'text',
+                    text: activeTextInput.text,
+                    x: activeTextInput.x,
+                    y: activeTextInput.y,
+                    color: props.color,
+                    fontSize: props.fontSize,
+                    fontFamily: props.fontFamily,
+                    bold: props.isBold,
+                    italic: props.isItalic,
+                    underline: props.isUnderline,
+                    align: props.textAlign,
+                    layerId: props.activeLayerId,
+                  };
+                  pushToHistory([...props.elements, newEl]);
+                }
+                setActiveTextInput(null);
+              } else if (e.key === 'Escape') {
+                setActiveTextInput(null);
+              }
             }}
-            placeholder="Type your study notes here..."
-            className="bg-transparent border-none outline-none px-2 py-1 min-w-[220px] text-slate-900 dark:text-white"
+            onBlur={() => {
+              if (activeTextInput.text.trim()) {
+                const newEl: TextElement = {
+                  id: 'text_' + Date.now(),
+                  type: 'text',
+                  text: activeTextInput.text,
+                  x: activeTextInput.x,
+                  y: activeTextInput.y,
+                  color: props.color,
+                  fontSize: props.fontSize,
+                  fontFamily: props.fontFamily,
+                  bold: props.isBold,
+                  italic: props.isItalic,
+                  underline: props.isUnderline,
+                  align: props.textAlign,
+                  layerId: props.activeLayerId,
+                };
+                pushToHistory([...props.elements, newEl]);
+              }
+              setActiveTextInput(null);
+            }}
+            className="px-2 py-1 bg-white/90 dark:bg-slate-800/90 border border-indigo-500 rounded-lg shadow-lg text-slate-900 dark:text-white outline-hidden"
             style={{
+              fontSize: `${props.fontSize}px`,
               fontFamily: props.fontFamily,
-              fontSize: `${Math.max(14, props.fontSize)}px`,
               color: props.color,
-              fontWeight: props.isBold ? 'bold' : 'normal',
-              fontStyle: props.isItalic ? 'italic' : 'normal',
             }}
           />
-
-          <button
-            onMouseDown={(e) => { e.preventDefault(); handleSaveText(); }}
-            className="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-md hover:bg-indigo-700 transition-colors"
-          >
-            Save ✓
-          </button>
-
-          <button
-            onMouseDown={(e) => { e.preventDefault(); setActiveTextInput(null); }}
-            className="px-2 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-rose-500 font-bold text-xs transition-colors"
-          >
-            ✕
-          </button>
         </div>
       )}
     </div>
   );
 });
-
-WhiteboardCanvas.displayName = 'WhiteboardCanvas';

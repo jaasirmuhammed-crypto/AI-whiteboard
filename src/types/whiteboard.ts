@@ -1,4 +1,4 @@
-﻿export type PenType = 
+export type PenType = 
   | 'basic-pen' 
   | 'marker' 
   | 'highlighter' 
@@ -41,7 +41,9 @@ export type BackgroundPattern =
   | 'ruled' 
   | 'grid' 
   | 'dotted' 
-  | 'graph';
+  | 'graph'
+  | 'isometric'
+  | 'blueprint';
 
 export type FontCategory = 'basic' | 'study' | 'creative';
 
@@ -57,6 +59,15 @@ export interface StrokePoint {
   x: number;
   y: number;
   pressure?: number;
+  time?: number;
+}
+
+export interface CanvasLayer {
+  id: string;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  opacity: number;
 }
 
 export interface StrokeElement {
@@ -68,6 +79,8 @@ export interface StrokeElement {
   width: number;
   opacity: number;
   timestamp: number;
+  layerId?: string;
+  smoothed?: boolean;
 }
 
 export interface ShapeElement {
@@ -82,6 +95,7 @@ export interface ShapeElement {
   fillColor?: string;
   strokeWidth: number;
   opacity: number;
+  layerId?: string;
 }
 
 export interface TextElement {
@@ -98,6 +112,7 @@ export interface TextElement {
   underline: boolean;
   align: 'left' | 'center' | 'right';
   backgroundColor?: string;
+  layerId?: string;
 }
 
 export interface StickyElement {
@@ -110,6 +125,7 @@ export interface StickyElement {
   text: string;
   color: string;
   title?: string;
+  layerId?: string;
 }
 
 export type WhiteboardElement = StrokeElement | ShapeElement | TextElement | StickyElement;
@@ -121,3 +137,16 @@ export interface ViewportState {
 }
 
 export type AutoSaveState = 'saved' | 'saving' | 'unsaved' | 'error';
+
+export interface CollaboratorCursor {
+  id: string;
+  name: string;
+  avatar: string;
+  color: string;
+  x: number;
+  y: number;
+  action?: string;
+  lastActive: number;
+}
+
+export type LineSmoothingLevel = 'none' | 'medium' | 'high';

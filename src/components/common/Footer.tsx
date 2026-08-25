@@ -1,16 +1,14 @@
-import React, { useState } from 'react';
-import { Sparkles, Heart, Shield, Code2, Globe2, MessageSquarePlus } from 'lucide-react';
+import React from 'react';
+import { Sparkles, Shield, Code2, Globe2 } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { useProject } from '../../context/ProjectContext';
-import { FeedbackModal } from './FeedbackModal';
 
 export const Footer: React.FC = () => {
   const { t } = useI18n();
   const { setCurrentView } = useProject();
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   return (
-    <footer className="relative z-10 border-t border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl mt-20 transition-colors duration-200">
+    <footer className="relative z-20 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 mt-20 transition-colors duration-200 shadow-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 lg:gap-12">
           
@@ -55,15 +53,6 @@ export const Footer: React.FC = () => {
                   {t.nav.dashboard}
                 </button>
               </li>
-              <li>
-                <button 
-                  onClick={() => setShowFeedbackModal(true)}
-                  className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
-                >
-                  <MessageSquarePlus className="w-3.5 h-3.5" />
-                  <span>Give Feedback / Review</span>
-                </button>
-              </li>
             </ul>
           </div>
 
@@ -96,12 +85,6 @@ export const Footer: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Feedback Modal */}
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-      />
     </footer>
   );
 };

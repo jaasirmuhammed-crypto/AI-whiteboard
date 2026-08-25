@@ -1,20 +1,11 @@
 import React, { useState } from 'react';
-import { Star, MessageSquarePlus, CheckCircle2, ShieldCheck, Heart, Sparkles } from 'lucide-react';
+import { Star, CheckCircle2, Heart, Sparkles } from 'lucide-react';
 import { CompetitiveService, UserReview } from '../../services/competitiveService';
-import { FeedbackModal } from '../common/FeedbackModal';
 
 export const LiveStudentReviewsSection: React.FC = () => {
-  const [reviews, setReviews] = useState<UserReview[]>(() => 
+  const [reviews] = useState<UserReview[]>(() => 
     CompetitiveService.getReviews().filter((r) => r.status === 'approved' && r.rating >= 4)
   );
-
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-
-  const handleReviewSubmitted = () => {
-    // Refresh published live reviews
-    const updated = CompetitiveService.getReviews().filter((r) => r.status === 'approved' && r.rating >= 4);
-    setReviews(updated);
-  };
 
   return (
     <section className="relative py-16 sm:py-24 bg-slate-50/50 dark:bg-slate-900/50 border-y border-slate-200/60 dark:border-slate-800/60 overflow-hidden">
@@ -28,23 +19,15 @@ export const LiveStudentReviewsSection: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 dark:border-slate-800 pb-8">
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold font-mono border border-indigo-500/20">
-              <Sparkles className="w-3.5 h-3.5" /> Live Student Feedback
+              <Sparkles className="w-3.5 h-3.5" /> Community Verified
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold font-brand tracking-tight text-slate-900 dark:text-white">
               Student Reviews & Community Ratings
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              Positive reviews (4–5 ★) update live on the website automatically. Constructive feedback (1–3 ★) is privately sent via personal email directly to the <span className="font-semibold text-indigo-600 dark:text-indigo-400">Admin Support Team</span>.
+              Explore how students and educators from around the globe use AI Whiteboard to accelerate exam preparation, lecture synthesis, and diagram mind maps.
             </p>
           </div>
-
-          <button
-            onClick={() => setShowFeedbackModal(true)}
-            className="btn-interactive px-6 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-extrabold shadow-lg shadow-indigo-600/30 flex items-center gap-2 shrink-0 self-start md:self-auto"
-          >
-            <MessageSquarePlus className="w-4 h-4" />
-            <span>Give Feedback / Submit Review</span>
-          </button>
         </div>
 
         {/* Reviews Display Grid */}
@@ -66,7 +49,7 @@ export const LiveStudentReviewsSection: React.FC = () => {
                   </div>
 
                   <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Auto-Verified Live
+                    <CheckCircle2 className="w-3 h-3" /> Verified Student
                   </span>
                 </div>
 
@@ -96,27 +79,13 @@ export const LiveStudentReviewsSection: React.FC = () => {
               <Heart className="w-6 h-6" />
             </div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white font-brand">
-              Be the First to Submit a Live Student Review!
+              Top Student Community
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              Submit your review above. 4–5 star reviews will automatically appear right here on the website!
+              Trusted by students and educators across top universities and competitive exam preparation centers.
             </p>
-            <button
-              onClick={() => setShowFeedbackModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-md hover:bg-indigo-500 transition-colors mt-2"
-            >
-              <MessageSquarePlus className="w-4 h-4" />
-              <span>Write First Review</span>
-            </button>
           </div>
         )}
-
-        {/* Feedback Submission Modal */}
-        <FeedbackModal
-          isOpen={showFeedbackModal}
-          onClose={() => setShowFeedbackModal(false)}
-          onSubmitted={handleReviewSubmitted}
-        />
       </div>
     </section>
   );

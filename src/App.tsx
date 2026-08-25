@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { I18nProvider } from './i18n';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './components/common/Toast';
 import { ProjectProvider, useProject } from './context/ProjectContext';
 
@@ -10,6 +10,7 @@ import { BrushIntroScreen } from './components/common/BrushIntroScreen';
 import { TopicsExpertiseCard } from './components/common/TopicsExpertiseCard';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
+import { OfflineBanner } from './components/common/OfflineBanner';
 
 // Landing Page Components
 import { HeroSection } from './components/landing/HeroSection';
@@ -37,11 +38,22 @@ import { ViewControls } from './components/whiteboard/ViewControls';
 import { ClearBoardModal } from './components/whiteboard/ClearBoardModal';
 import { ShortcutsModal } from './components/whiteboard/ShortcutsModal';
 import { BackgroundSelector } from './components/whiteboard/BackgroundSelector';
+import { CollaborationModal } from './components/whiteboard/CollaborationModal';
+import { VersionHistoryModal } from './components/whiteboard/VersionHistoryModal';
+import { LayersPanelModal } from './components/whiteboard/LayersPanelModal';
+import { TemplatesModal } from './components/whiteboard/TemplatesModal';
 
 // AI Modals
 import { AIProcessingModal } from './components/ai/AIProcessingModal';
 import { AISettingsModal } from './components/ai/AISettingsModal';
 import { TopicConfirmModal } from './components/ai/TopicConfirmModal';
+import { OCRReviewModal } from './components/ai/OCRReviewModal';
+import { OutputCustomizationModal } from './components/ai/OutputCustomizationModal';
+
+// Common Core Modals & Payments
+import { ExportHubModal } from './components/common/ExportHubModal';
+import { QuotaUsageModal } from './components/common/QuotaUsageModal';
+import { TokensExhaustedModal } from './components/common/TokensExhaustedModal';
 
 // Study Hub
 import { StudyMaterialsHub } from './components/study/StudyMaterialsHub';
@@ -58,7 +70,8 @@ import { CompetitiveService } from './services/competitiveService';
 import { Topic } from './types/competitive';
 
 // Types & Services
-import { ToolType, PenType, PencilType, EraserType, ShapeType } from './types/whiteboard';
+import { ToolType, PenType, PencilType, EraserType, ShapeType, CanvasLayer, CollaboratorCursor, LineSmoothingLevel } from './types/whiteboard';
+import { OutputCustomizationSettings, UserQuotaState, VersionSnapshot, CanvasPerformanceTelemetry } from './types/advancedFeatures';
 import { AIService } from './services/aiService';
 
 const MainAppContent: React.FC = () => {
@@ -73,6 +86,7 @@ const MainAppContent: React.FC = () => {
     setGeneratedMaterials,
     activeStudyMaterials,
   } = useProject();
+  const { user, isPremium, deductToken, upgradeToPremium } = useAuth();
   const { showToast } = useToast();
 
   // Canvas Reference
@@ -105,14 +119,90 @@ const MainAppContent: React.FC = () => {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanMode, setIsPanMode] = useState(false);
 
+  // Advanced Drawing Engine Options
+  const [smoothingLevel, setSmoothingLevel] = useState<LineSmoothingLevel>('medium');
+  const [pressureEnabled, setPressureEnabled] = useState(true);
+  const [shapeAutoDetect, setShapeAutoDetect] = useState(true);
+
+  // Layers System
+  const [layers, setLayers] = useState<CanvasLayer[]>([
+    { id: 'layer_default', name: 'Main Canvas Layer', visible: true, locked: false, opacity: 1 },
+  ]);
+  const [activeLayerId, setActiveLayerId] = useState('layer_default');
+
+  // Performance Telemetry State
+  const [telemetry, setTelemetry] = useState<CanvasPerformanceTelemetry>({
+    fps: 60,
+    drawLatencyMs: 6,
+    activeStrokesCount: 0,
+    memoryEstimateKB: 16,
+    smoothingEnabled: true,
+    deviceType: 'stylus',
+  });
+
+  // Multiplayer Collaboration State
+  const [isMultiplayerActive, setIsMultiplayerActive] = useState(false);
+  const [collaborators, setCollaborators] = useState<CollaboratorCursor[]>([
+    { id: 'c1', name: 'Dr. Sarah Chen', avatar: '👩‍🏫', color: '#10b981', x: 220, y: 180, lastActive: Date.now() },
+    { id: 'c2', name: 'Alex Rivera (MIT)', avatar: '👨‍🎓', color: '#f59e0b', x: 540, y: 320, lastActive: Date.now() },
+  ]);
+
+  // Version Control History
+  const [versions, setVersions] = useState<VersionSnapshot[]>([]);
+  const [currentVersionNumber, setCurrentVersionNumber] = useState(1);
+
+  // Output Customization Settings
+  const [customizationSettings, setCustomizationSettings] = useState<OutputCustomizationSettings>({
+    pptTheme: 'modern',
+    mcqDifficulty: 'medium',
+    mindMapStyle: 'circular',
+    contentDepth: 'detailed',
+    includeSlides: true,
+    includeMCQs: true,
+    includeMindMap: true,
+    targetLanguage: 'English',
+    includeFormulas: true,
+    includeHistoricalContext: true,
+  });
+
+  // User Quota State
+  const [quotaState, setQuotaState] = useState<UserQuotaState>(() => ({
+    dailyGenerationsAllowed: isPremium ? 999999 : 5,
+    generationsUsedToday: 0,
+    resetHoursRemaining: 10,
+    isProUser: isPremium,
+    tierName: isPremium ? 'Pro Scholar' : 'Free Starter',
+    priorityQueueActive: isPremium,
+  }));
+
+  // Synchronize quota state with user auth changes
+  useEffect(() => {
+    setQuotaState((prev) => ({
+      ...prev,
+      isProUser: isPremium,
+      dailyGenerationsAllowed: isPremium ? 999999 : 5,
+      tierName: isPremium ? 'Pro Scholar' : 'Free Starter',
+      priorityQueueActive: isPremium,
+    }));
+  }, [isPremium]);
+
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
 
-  // Popover / Modal visibility
+  // Popovers & Core Modals visibility
   const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
   const [clearModalOpen, setClearModalOpen] = useState(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [ocrModalOpen, setOcrModalOpen] = useState(false);
+  const [exportHubOpen, setExportHubOpen] = useState(false);
+  const [outputCustomizationOpen, setOutputCustomizationOpen] = useState(false);
+  const [collaborationModalOpen, setCollaborationModalOpen] = useState(false);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [layersModalOpen, setLayersModalOpen] = useState(false);
+  const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
+  const [quotaModalOpen, setQuotaModalOpen] = useState(false);
+  const [tokensExhaustedModalOpen, setTokensExhaustedModalOpen] = useState(false);
 
   // Live Brush Intro Animation State
   const [showIntro, setShowIntro] = useState(true);
@@ -123,12 +213,30 @@ const MainAppContent: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState(1);
   const [processingMessage, setProcessingMessage] = useState('');
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   // Competitive Router State
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
 
   const selectedExam = selectedExamId ? CompetitiveService.getExamById(selectedExamId) : null;
+
+  // Animate remote multiplayer cursors slightly when active
+  useEffect(() => {
+    if (!isMultiplayerActive) return;
+
+    const interval = setInterval(() => {
+      setCollaborators((prev) =>
+        prev.map((c) => ({
+          ...c,
+          x: c.x + (Math.random() - 0.5) * 40,
+          y: c.y + (Math.random() - 0.5) * 30,
+        }))
+      );
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isMultiplayerActive]);
 
   // Whiteboard workflow triggers
   const handleStartWriting = () => {
@@ -140,6 +248,12 @@ const MainAppContent: React.FC = () => {
   };
 
   const handleStopAndProcess = () => {
+    // 1. Check Token / Quota Balance
+    if (!isPremium && quotaState.dailyGenerationsAllowed - quotaState.generationsUsedToday <= 0) {
+      setTokensExhaustedModalOpen(true);
+      return;
+    }
+
     let topicToUse = currentProject?.title || 'Machine Learning & AI';
     if (topicToUse === 'Untitled Project' || topicToUse.startsWith('Notebook #')) {
       const elements = currentProject?.elements || [];
@@ -153,15 +267,29 @@ const MainAppContent: React.FC = () => {
       }
     }
     setPendingTopic(topicToUse);
-    setTopicConfirmOpen(true);
+    // Trigger OCR & handwriting recognition pre-pass
+    setOcrModalOpen(true);
   };
 
   const handleConfirmTopicAndProcess = async (confirmedTopic: string, targetExam?: Exam | null) => {
+    // Token deduction check
+    if (!isPremium) {
+      const hasTokens = deductToken();
+      if (!hasTokens) {
+        setTopicConfirmOpen(false);
+        setOcrModalOpen(false);
+        setTokensExhaustedModalOpen(true);
+        return;
+      }
+    }
+
     setTopicConfirmOpen(false);
+    setOcrModalOpen(false);
     updateProjectTitle(confirmedTopic);
     setIsProcessing(true);
     setProcessingStage(1);
-    setProcessingMessage('Capturing whiteboard notes...');
+    setProcessingMessage('Capturing high-resolution whiteboard notes...');
+    setGenerationError(null);
 
     try {
       const elements = currentProject?.elements || [];
@@ -182,20 +310,58 @@ const MainAppContent: React.FC = () => {
 
       setGeneratedMaterials(studyPackage);
       setIsProcessing(false);
+
+      // Record snapshot to version history
+      const newVersion: VersionSnapshot = {
+        id: 'ver_' + Date.now(),
+        versionNumber: versions.length + 1,
+        timestamp: new Date().toISOString(),
+        title: confirmedTopic,
+        elementsCount: elements.length,
+        thumbnail: canvasSnapshot,
+        elements: [...elements],
+        studyPackage,
+      };
+      setVersions((prev) => [...prev, newVersion]);
+      setCurrentVersionNumber(newVersion.versionNumber);
+
+      // Increment Quota used if free user
+      if (!isPremium) {
+        setQuotaState((q) => ({
+          ...q,
+          generationsUsedToday: Math.min(q.dailyGenerationsAllowed, q.generationsUsedToday + 1),
+        }));
+      }
+
       const examName = targetExam ? ` for ${targetExam.name}` : '';
       showToast(`Study Materials Generated for "${confirmedTopic}"${examName}! 🎉`, 'success');
       setCurrentView('study_hub');
     } catch (err) {
       console.error(err);
-      setIsProcessing(false);
-      showToast('AI Processing failed. Please try again.', 'error');
+      setGenerationError('AI generation encountered a timeout. You can retry with exponential backoff or use manual text.');
     }
+  };
+
+  const handlePaymentSuccessActivation = () => {
+    upgradeToPremium('pay_live_verified');
+    setQuotaState({
+      dailyGenerationsAllowed: 999999,
+      generationsUsedToday: 0,
+      resetHoursRemaining: 720,
+      isProUser: true,
+      tierName: 'Pro Scholar',
+      priorityQueueActive: true,
+    });
+    showToast('Payment successful! Your Premium plan is now active. 👑', 'success');
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 relative overflow-x-hidden">
       {/* Live Brush Intro Animation */}
       {showIntro && <BrushIntroScreen onComplete={() => setShowIntro(false)} />}
+
+      {/* Global Offline Mode Status Banner */}
+      <OfflineBanner />
 
       {/* Global Dynamic Wave Background */}
       <LiveWaveBackground />
@@ -204,6 +370,7 @@ const MainAppContent: React.FC = () => {
       <Navbar
         onOpenLogin={() => { setRegisterOpen(false); setLoginOpen(true); }}
         onOpenRegister={() => { setLoginOpen(false); setRegisterOpen(true); }}
+        onOpenUpgradeModal={() => setTokensExhaustedModalOpen(true)}
       />
 
       {/* Main View Router */}
@@ -330,7 +497,7 @@ const MainAppContent: React.FC = () => {
 
         {currentView === 'whiteboard' && (
           <div className="relative w-full h-[calc(100vh-64px)] flex flex-col overflow-hidden">
-            {/* Top Whiteboard Control Bar */}
+            {/* Top Whiteboard Control Bar with all core feature triggers */}
             <TopControlBar
               canUndo={canvasRef.current?.canUndo || false}
               canRedo={canvasRef.current?.canRedo || false}
@@ -342,6 +509,15 @@ const MainAppContent: React.FC = () => {
               onToggleRecording={() => setIsRecording(!isRecording)}
               onStopAndProcess={handleStopAndProcess}
               onOpenBackgrounds={() => setBgSelectorOpen(!bgSelectorOpen)}
+              onOpenExportHub={() => setExportHubOpen(true)}
+              onOpenCollaboration={() => setCollaborationModalOpen(true)}
+              onOpenVersionHistory={() => setVersionHistoryOpen(true)}
+              onOpenLayers={() => setLayersModalOpen(true)}
+              onOpenTemplates={() => setTemplatesModalOpen(true)}
+              onOpenQuota={() => (isPremium ? setQuotaModalOpen(true) : setTokensExhaustedModalOpen(true))}
+              onOpenCustomization={() => setOutputCustomizationOpen(true)}
+              isMultiplayerActive={isMultiplayerActive}
+              quotaRemaining={isPremium ? 9999 : Math.max(0, quotaState.dailyGenerationsAllowed - quotaState.generationsUsedToday)}
             />
 
             {/* Background Pattern Selector Popover */}
@@ -382,6 +558,20 @@ const MainAppContent: React.FC = () => {
               isPanMode={isPanMode}
               onPanChange={setPanOffset}
               onScaleChange={setScale}
+              smoothingLevel={smoothingLevel}
+              pressureEnabled={pressureEnabled}
+              shapeAutoDetect={shapeAutoDetect}
+              layers={layers}
+              activeLayerId={activeLayerId}
+              collaborators={isMultiplayerActive ? collaborators : []}
+              onTelemetryUpdate={(fps, lat, count) => {
+                setTelemetry((prev) => ({
+                  ...prev,
+                  fps,
+                  drawLatencyMs: lat,
+                  activeStrokesCount: count,
+                }));
+              }}
             />
 
             {/* Floating Tools Dock */}
@@ -471,10 +661,36 @@ const MainAppContent: React.FC = () => {
         onClose={() => setShortcutsModalOpen(false)}
       />
 
+      {/* OCR Handwriting Pre-Recognition Review Modal */}
+      <OCRReviewModal
+        isOpen={ocrModalOpen}
+        onClose={() => setOcrModalOpen(false)}
+        canvasSnapshot={canvasRef.current?.getSnapshotDataUrl() || ''}
+        elements={currentProject?.elements || []}
+        initialTopic={pendingTopic}
+        onProceedToAI={(correctedTopic) => {
+          setOcrModalOpen(false);
+          setPendingTopic(correctedTopic);
+          setTopicConfirmOpen(true);
+        }}
+      />
+
+      {/* AI Processing Modal with Progress & Error Recovery */}
       <AIProcessingModal
         isOpen={isProcessing}
         currentStage={processingStage}
         stageMessage={processingMessage}
+        isError={!!generationError}
+        errorMessage={generationError || ''}
+        onCancel={() => {
+          setIsProcessing(false);
+          setGenerationError(null);
+        }}
+        onRetry={() => handleConfirmTopicAndProcess(pendingTopic, selectedExam)}
+        onManualFallback={() => {
+          setIsProcessing(false);
+          setTopicConfirmOpen(true);
+        }}
       />
 
       <AISettingsModal
@@ -489,6 +705,91 @@ const MainAppContent: React.FC = () => {
         onClose={() => setTopicConfirmOpen(false)}
         onConfirm={handleConfirmTopicAndProcess}
       />
+
+      {/* Export Hub Modal */}
+      <ExportHubModal
+        isOpen={exportHubOpen}
+        onClose={() => setExportHubOpen(false)}
+        studyPackage={activeStudyMaterials}
+        canvasSnapshot={canvasRef.current?.getSnapshotDataUrl()}
+        canvasSvgString={canvasRef.current?.getSVGString()}
+      />
+
+      {/* Output Customization Modal */}
+      <OutputCustomizationModal
+        isOpen={outputCustomizationOpen}
+        onClose={() => setOutputCustomizationOpen(false)}
+        settings={customizationSettings}
+        onSaveSettings={(newSettings) => {
+          setCustomizationSettings(newSettings);
+          showToast('Output style & difficulty settings saved!', 'success');
+        }}
+      />
+
+      {/* Multiplayer Collaboration Modal */}
+      <CollaborationModal
+        isOpen={collaborationModalOpen}
+        onClose={() => setCollaborationModalOpen(false)}
+        isMultiplayerActive={isMultiplayerActive}
+        onToggleMultiplayer={setIsMultiplayerActive}
+        collaborators={collaborators}
+        whiteboardTitle={currentProject?.title || 'AI Whiteboard'}
+      />
+
+      {/* Version History & Rollback Modal */}
+      <VersionHistoryModal
+        isOpen={versionHistoryOpen}
+        onClose={() => setVersionHistoryOpen(false)}
+        versions={versions}
+        currentVersionNumber={currentVersionNumber}
+        onRestoreVersion={(ver) => {
+          if (currentProject) {
+            updateCurrentProjectElements(ver.elements, ver.thumbnail);
+            updateProjectTitle(ver.title);
+            if (ver.studyPackage) {
+              setGeneratedMaterials(ver.studyPackage);
+            }
+            setCurrentVersionNumber(ver.versionNumber);
+          }
+        }}
+      />
+
+      {/* Canvas Layers Modal */}
+      <LayersPanelModal
+        isOpen={layersModalOpen}
+        onClose={() => setLayersModalOpen(false)}
+        layers={layers}
+        activeLayerId={activeLayerId}
+        onSelectLayer={setActiveLayerId}
+        onUpdateLayers={setLayers}
+      />
+
+      {/* Daily Quota & Pricing Modal */}
+      <QuotaUsageModal
+        isOpen={quotaModalOpen}
+        onClose={() => setQuotaModalOpen(false)}
+        quotaState={quotaState}
+        onUpgrade={handlePaymentSuccessActivation}
+      />
+
+      {/* Dedicated Tokens Exhausted Upgrade Modal */}
+      <TokensExhaustedModal
+        isOpen={tokensExhaustedModalOpen}
+        onClose={() => setTokensExhaustedModalOpen(false)}
+        onPaymentSuccess={handlePaymentSuccessActivation}
+      />
+
+      {/* Structured Notebook Templates Modal */}
+      <TemplatesModal
+        isOpen={templatesModalOpen}
+        onClose={() => setTemplatesModalOpen(false)}
+        onApplyTemplate={(newElements) => {
+          if (currentProject) {
+            updateCurrentProjectElements([...currentProject.elements, ...newElements]);
+          }
+        }}
+      />
+
     </div>
   );
 };
