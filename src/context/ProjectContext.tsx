@@ -3,6 +3,7 @@ import { WhiteboardProject } from '../types/user';
 import { StudyMaterialsPackage } from '../types/studyMaterial';
 import { WhiteboardElement, BackgroundPattern, AutoSaveState } from '../types/whiteboard';
 import { StorageService } from '../services/storageService';
+import { FirebaseService } from '../services/firebaseService';
 import { useAuth } from './AuthContext';
 
 export type AppView =
@@ -60,14 +61,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
-  // Save current project debounced
+  // Save current project debounced & sync to Firebase Firestore cloud
   const triggerAutoSave = useCallback((updated: WhiteboardProject) => {
     setAutoSaveState('saving');
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-    saveTimeoutRef.current = setTimeout(() => {
+    saveTimeoutRef.current = setTimeout(async () => {
       try {
-        StorageService.saveProject(updated);
+        await FirebaseService.saveDrawingToCloud(user, updated.thumbnailDataUrl || '', updated);
         setProjects(StorageService.getProjects());
         setAutoSaveState('saved');
       } catch (err) {
@@ -75,7 +76,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setAutoSaveState('error');
       }
     }, 600);
-  }, []);
+  }, [user]);
 
   const createProject = (title?: string, pattern: BackgroundPattern = 'ruled'): WhiteboardProject => {
     const newProj: WhiteboardProject = {
