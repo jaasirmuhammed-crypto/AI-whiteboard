@@ -48,68 +48,33 @@ export const MCQTestSystem: React.FC<MCQTestSystemProps> = ({
   // Results State
   const [latestResult, setLatestResult] = useState<ExamResult | null>(null);
 
-  // Strictly loads questions ONLY belonging to the current exam and its subjects
+  // Strictly loads questions ONLY belonging to the syllabus and exam domains
   const loadQuestions = () => {
-    // 1. Fetch questions strictly belonging to this exam (and topic if selected)
+    // 1. Fetch authentic questions for this exam (and topic if selected)
     let pool = CompetitiveService.getQuestions(
       exam.id,
       selectedTopicId !== 'all' ? selectedTopicId : undefined
     );
 
+    // If pool has fewer than requested, broaden to all authentic questions in syllabus bank
+    if (pool.length < questionCount) {
+      const allSyllabusQuestions = CompetitiveService.getQuestions();
+      const additional = allSyllabusQuestions.filter(
+        (q) => !pool.some((p) => p.id === q.id)
+      );
+      pool = [...pool, ...additional];
+    }
+
     // Filter by difficulty if requested
     if (difficulty !== 'all') {
       const filtered = pool.filter((q) => q.difficulty === difficulty);
-      if (filtered.length > 0) {
+      if (filtered.length >= 3) {
         pool = filtered;
       }
     }
 
-    // Shuffle pool
-    let selected = [...pool].sort(() => 0.5 - Math.random());
-
-    // 2. If pool count is less than requested questionCount (5, 10, or 15),
-    // synthesize dynamic questions STRICTLY derived from this exam's official subjects!
-    if (selected.length < questionCount) {
-      const availableSubjects = exam.subjects && exam.subjects.length > 0
-        ? exam.subjects
-        : [{ id: 'core', name: exam.category || 'Core Exam Concepts', topics: [] }];
-
-      // Determine target topic/subject
-      let selectedTopic = exam.subjects
-        .flatMap((s) => s.topics)
-        .find((t) => t.id === selectedTopicId);
-
-      const missingCount = questionCount - selected.length;
-
-      for (let i = 0; i < missingCount; i++) {
-        // Cycle strictly through this exam's official subjects
-        const targetSubject = availableSubjects[i % availableSubjects.length];
-        const subjectName = targetSubject.name;
-        const topicName = selectedTopic ? selectedTopic.name : `${subjectName} Core Principles`;
-
-        const synthQ: MCQQuestion = {
-          id: `synth_${exam.id}_${Date.now()}_${i}`,
-          examId: exam.id,
-          topicId: selectedTopicId !== 'all' ? selectedTopicId : targetSubject.id,
-          topicName: `${subjectName} • ${topicName}`,
-          question: `In ${exam.name} [Subject: ${subjectName}], which of the following statements regarding ${topicName} (Practice Q#${selected.length + 1}) is correct according to the official syllabus?`,
-          options: [
-            `It represents a fundamental governing law of ${subjectName} in ${exam.name}.`,
-            `It applies strictly in non-standard theoretical edge cases.`,
-            `It was declared invalid under standard exam guidelines.`,
-            `It is only relevant for advanced research outside the ${exam.name} syllabus.`,
-          ],
-          correctAnswer: 0,
-          explanation: `Option A correctly states the core ${subjectName} requirement for ${topicName} in the ${exam.name} examination.`,
-          difficulty: difficulty === 'all' ? (['easy', 'medium', 'hard'][i % 3] as any) : difficulty,
-          isSourceBased: false,
-          sourceTag: `AI Practice • ${subjectName}`,
-        };
-        selected.push(synthQ);
-      }
-    }
-
-    selected = selected.slice(0, questionCount);
+    // Shuffle and slice to exact count
+    const selected = [...pool].sort(() => 0.5 - Math.random()).slice(0, questionCount);
     setQuestions(selected);
   };
 

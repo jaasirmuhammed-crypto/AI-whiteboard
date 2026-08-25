@@ -1,5 +1,11 @@
 import { Exam, MCQQuestion, ExamResult, Bookmark } from '../types/competitive';
 import { INITIAL_COMPETITIVE_EXAMS, INITIAL_PRACTICE_QUESTIONS } from '../data/competitiveExamsData';
+import { COMPREHENSIVE_SYLLABUS_QUESTIONS } from '../data/competitiveQuestionsData';
+
+const ALL_INITIAL_QUESTIONS: MCQQuestion[] = [
+  ...COMPREHENSIVE_SYLLABUS_QUESTIONS,
+  ...INITIAL_PRACTICE_QUESTIONS,
+];
 
 const EXAMS_KEY = 'ai_whiteboard_competitive_exams';
 const QUESTIONS_KEY = 'ai_whiteboard_competitive_questions';
@@ -108,16 +114,22 @@ export class CompetitiveService {
     let allQuestions: MCQQuestion[] = [];
     try {
       const stored = localStorage.getItem(QUESTIONS_KEY);
-      allQuestions = stored ? JSON.parse(stored) : INITIAL_PRACTICE_QUESTIONS;
+      allQuestions = stored ? JSON.parse(stored) : ALL_INITIAL_QUESTIONS;
     } catch (e) {
-      allQuestions = INITIAL_PRACTICE_QUESTIONS;
+      allQuestions = ALL_INITIAL_QUESTIONS;
     }
 
     if (examId) {
-      allQuestions = allQuestions.filter((q) => q.examId === examId);
+      const byExam = allQuestions.filter((q) => q.examId === examId);
+      if (byExam.length > 0) {
+        allQuestions = byExam;
+      }
     }
-    if (topicId) {
-      allQuestions = allQuestions.filter((q) => q.topicId === topicId);
+    if (topicId && topicId !== 'all') {
+      const byTopic = allQuestions.filter((q) => q.topicId === topicId);
+      if (byTopic.length > 0) {
+        allQuestions = byTopic;
+      }
     }
 
     return allQuestions;

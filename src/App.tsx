@@ -68,6 +68,7 @@ import { MCQTestSystem } from './components/competitive/MCQTestSystem';
 import { BookmarksView } from './components/competitive/BookmarksView';
 import { AdminDashboardView } from './components/admin/AdminDashboardView';
 import { CompetitiveService } from './services/competitiveService';
+import { AnalyticsTrackingService } from './services/analyticsTrackingService';
 import { Topic } from './types/competitive';
 
 // Types & Services
@@ -187,6 +188,15 @@ const MainAppContent: React.FC = () => {
     }));
   }, [isPremium]);
 
+  // Track initial website visit on load
+  useEffect(() => {
+    AnalyticsTrackingService.trackEvent('WEBSITE_VISIT', {
+      userId: user?.id,
+      userEmail: user?.email,
+      userName: user?.name,
+    });
+  }, []);
+
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
 
@@ -205,6 +215,17 @@ const MainAppContent: React.FC = () => {
   const [quotaModalOpen, setQuotaModalOpen] = useState(false);
   const [tokensExhaustedModalOpen, setTokensExhaustedModalOpen] = useState(false);
   const [onboardingTourOpen, setOnboardingTourOpen] = useState(false);
+
+  // Track when upgrade / quota modals are viewed
+  useEffect(() => {
+    if (quotaModalOpen || tokensExhaustedModalOpen) {
+      AnalyticsTrackingService.trackEvent('UPGRADE_VIEWED', {
+        userId: user?.id,
+        userEmail: user?.email,
+        userName: user?.name,
+      });
+    }
+  }, [quotaModalOpen, tokensExhaustedModalOpen]);
 
   // Live Brush Intro Animation State
   const [showIntro, setShowIntro] = useState(true);
@@ -281,6 +302,12 @@ const MainAppContent: React.FC = () => {
         setTopicConfirmOpen(false);
         setOcrModalOpen(false);
         setTokensExhaustedModalOpen(true);
+        AnalyticsTrackingService.trackEvent('LIMIT_REACHED', {
+          userId: user?.id,
+          userEmail: user?.email,
+          userName: user?.name,
+          metadata: { topic: confirmedTopic },
+        });
         return;
       }
     }
@@ -292,6 +319,15 @@ const MainAppContent: React.FC = () => {
     setProcessingStage(1);
     setProcessingMessage('Capturing high-resolution whiteboard notes...');
     setGenerationError(null);
+
+    AnalyticsTrackingService.trackEvent('AI_GENERATION_STARTED', {
+      userId: user?.id,
+      userEmail: user?.email,
+      userName: user?.name,
+      feature: 'ai_suite',
+      tokensUsed: 1,
+      metadata: { topic: confirmedTopic, exam: targetExam?.name },
+    });
 
     try {
       const elements = currentProject?.elements || [];
@@ -312,6 +348,43 @@ const MainAppContent: React.FC = () => {
 
       setGeneratedMaterials(studyPackage);
       setIsProcessing(false);
+
+      // Track granular feature generation events
+      AnalyticsTrackingService.trackEvent('AI_GENERATION_SUCCESS', {
+        userId: user?.id,
+        userEmail: user?.email,
+        userName: user?.name,
+        feature: 'study_package',
+        tokensUsed: 1,
+      });
+      AnalyticsTrackingService.trackEvent('PPT_GENERATED', {
+        userId: user?.id,
+        userEmail: user?.email,
+        userName: user?.name,
+        feature: 'ppt',
+        tokensUsed: 0,
+      });
+      AnalyticsTrackingService.trackEvent('MCQ_GENERATED', {
+        userId: user?.id,
+        userEmail: user?.email,
+        userName: user?.name,
+        feature: 'mcq',
+        tokensUsed: 0,
+      });
+      AnalyticsTrackingService.trackEvent('MINDMAP_GENERATED', {
+        userId: user?.id,
+        userEmail: user?.email,
+        userName: user?.name,
+        feature: 'mindmap',
+        tokensUsed: 0,
+      });
+      AnalyticsTrackingService.trackEvent('STUDY_NOTES_GENERATED', {
+        userId: user?.id,
+        userEmail: user?.email,
+        userName: user?.name,
+        feature: 'notes',
+        tokensUsed: 0,
+      });
 
       // Record snapshot to version history
       const newVersion: VersionSnapshot = {
@@ -340,6 +413,12 @@ const MainAppContent: React.FC = () => {
       setCurrentView('study_hub');
     } catch (err) {
       console.error(err);
+      AnalyticsTrackingService.trackEvent('AI_GENERATION_FAILED', {
+        userId: user?.id,
+        userEmail: user?.email,
+        userName: user?.name,
+        metadata: { error: String(err) },
+      });
       setGenerationError('AI generation encountered a timeout. You can retry with exponential backoff or use manual text.');
     }
   };

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { UserProfile, AuthState } from '../types/user';
 import { PaymentService, FIXED_PREMIUM_PRICE_INR } from '../services/paymentService';
+import { AnalyticsTrackingService } from '../services/analyticsTrackingService';
 
 interface AuthContextType extends AuthState {
   login: (email: string, name?: string) => Promise<boolean>;
@@ -65,6 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const state = { user, isAuthenticated: true, token };
     setAuthState(state);
     localStorage.setItem('ai_whiteboard_auth', JSON.stringify({ user, token }));
+    PaymentService.saveRegisteredUser(user);
   };
 
   const login = async (email: string, name?: string): Promise<boolean> => {
@@ -84,6 +86,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscriptionExpiresAt: sub?.expiresAt,
     };
     saveAuth(user, 'jwt_token_' + Date.now());
+    AnalyticsTrackingService.trackEvent('USER_LOGIN', {
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+    });
     return true;
   };
 
@@ -100,6 +107,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscriptionStatus: 'inactive',
     };
     saveAuth(user, 'jwt_token_' + Date.now());
+    AnalyticsTrackingService.trackEvent('USER_REGISTERED', {
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+    });
     return true;
   };
 
@@ -167,6 +179,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     PaymentService.processSuccessfulUpgrade(updatedUser, effectivePaymentId, FIXED_PREMIUM_PRICE_INR, 'INR');
 
     saveAuth(updatedUser, authState.token || 'jwt_token_premium_' + Date.now());
+
+    AnalyticsTrackingService.trackEvent('PAYMENT_SUCCESS', {
+      userId: updatedUser.id,
+      userEmail: updatedUser.email,
+      userName: updatedUser.name,
+      metadata: { paymentId: effectivePaymentId, amount: FIXED_PREMIUM_PRICE_INR },
+    });
+
+    AnalyticsTrackingService.trackEvent('PLAN_UPGRADED', {
+      userId: updatedUser.id,
+      userEmail: updatedUser.email,
+      userName: updatedUser.name,
+      metadata: { plan: 'premium', expiry: expiry.toISOString() },
+    });
   }, [authState]);
 
   return (

@@ -1,27 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { CompetitiveService, UserReview, AnalyticsData } from '../../services/competitiveService';
-import { PaymentService } from '../../services/paymentService';
-import { PaymentRecord, SubscriptionRecord, AdminPaymentStats } from '../../types/payment';
-import { Exam, MCQQuestion } from '../../types/competitive';
+import { AnalyticsTrackingService } from '../../services/analyticsTrackingService';
+import { PaymentService, FIXED_PREMIUM_PRICE_INR } from '../../services/paymentService';
+import { CompetitiveService, UserReview } from '../../services/competitiveService';
+import {
+  DateRangePreset,
+  OverviewMetrics,
+  UserGrowthDataPoint,
+  AIUsageMetrics,
+  FeatureUsageMetric,
+  TokenAnalyticsData,
+  ConversionFunnelStage,
+  SystemHealthItem,
+  UserAnalyticsRecord,
+  AnalyticsEvent,
+} from '../../types/analytics';
+import { PaymentRecord, SubscriptionRecord } from '../../types/payment';
+import { DynamicLineChart, FunnelBarChart, FeatureDistributionBars } from './AnalyticsCharts';
+import { UserDetailModal } from './UserDetailModal';
 import {
   ShieldCheck,
   Users,
-  Eye,
-  Star,
-  Plus,
-  Trash2,
-  Edit,
-  CheckCircle,
-  AlertTriangle,
-  BarChart3,
-  Mail,
-  Lock,
-  Search,
-  BookOpen,
-  Filter,
-  Layers,
-  ArrowUpRight,
+  Sparkles,
+  Zap,
   TrendingUp,
   CreditCard,
   Crown,
@@ -30,7 +31,26 @@ import {
   XCircle,
   Clock,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Download,
+  AlertTriangle,
+  Activity,
+  Layers,
+  Search,
+  Filter,
+  ArrowUpRight,
+  ArrowDownRight,
+  Server,
+  Lock,
+  ChevronRight,
+  Eye,
+  Check,
+  AlertCircle,
+  HelpCircle,
+  FileText,
+  Sliders,
+  ChevronLeft,
+  Calendar
 } from 'lucide-react';
 import { useToast } from '../common/Toast';
 
@@ -38,715 +58,1230 @@ export const AdminDashboardView: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'payments' | 'analytics' | 'students' | 'reviews' | 'exams' | 'charts'>('payments');
+  // Admin Passcode Access Gate
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
     return user?.email === 'jaasirmuhammed@gmail.com' || localStorage.getItem('ai_whiteboard_admin_session') === 'true';
   });
-
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
-  
-  // Data state
-  const [analytics, setAnalytics] = useState<AnalyticsData>(() => CompetitiveService.getAnalytics());
-  const [reviews, setReviews] = useState<UserReview[]>(() => CompetitiveService.getReviews());
-  const [exams, setExams] = useState<Exam[]>(() => CompetitiveService.getExams());
 
-  // Payments & Subscription Management State
+  // Active Tab & Navigation
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'user_analytics' | 'ai_usage' | 'features' | 'tokens' | 'payments' | 'funnel' | 'users_table' | 'system_health' | 'reviews'
+  >('overview');
+
+  // Global Date Filter Preset
+  const [datePreset, setDatePreset] = useState<DateRangePreset>('30d');
+
+  // Loading & Error States
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Data States
+  const [overview, setOverview] = useState<OverviewMetrics>(() => AnalyticsTrackingService.getOverviewMetrics('30d'));
+  const [userGrowth, setUserGrowth] = useState<UserGrowthDataPoint[]>(() => AnalyticsTrackingService.getUserGrowth('30d'));
+  const [activeUsersStats, setActiveUsersStats] = useState(() => AnalyticsTrackingService.getActiveUserMetrics());
+  const [aiUsage, setAiUsage] = useState<AIUsageMetrics>(() => AnalyticsTrackingService.getAIUsageMetrics('30d'));
+  const [features, setFeatures] = useState<FeatureUsageMetric[]>(() => AnalyticsTrackingService.getFeatureUsage('30d'));
+  const [tokenAnalytics, setTokenAnalytics] = useState<TokenAnalyticsData>(() => AnalyticsTrackingService.getTokenAnalytics());
+  const [funnel, setFunnel] = useState<ConversionFunnelStage[]>(() => AnalyticsTrackingService.getConversionFunnel('30d'));
+  const [userRecords, setUserRecords] = useState<UserAnalyticsRecord[]>(() => AnalyticsTrackingService.getUserAnalyticsRecords());
+  const [recentActivity, setRecentActivity] = useState<AnalyticsEvent[]>(() => AnalyticsTrackingService.getRecentActivity(15));
+  const [systemHealth, setSystemHealth] = useState<SystemHealthItem[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>(() => PaymentService.getPayments());
-  const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>(() => PaymentService.getSubscriptions());
-  const [registeredUsers, setRegisteredUsers] = useState<any[]>(() => PaymentService.getRegisteredUsers());
-  const [paymentStats, setPaymentStats] = useState<AdminPaymentStats>(() => PaymentService.getAdminPaymentStats());
-  const [paymentFilter, setPaymentFilter] = useState<'all' | 'premium' | 'free' | 'successful' | 'failed'>('all');
+  const [reviews, setReviews] = useState<UserReview[]>(() => CompetitiveService.getReviews());
+
+  // User Table Search & Filters
+  const [userSearch, setUserSearch] = useState('');
+  const [userPlanFilter, setUserPlanFilter] = useState<'all' | 'premium' | 'free'>('all');
+  const [userPage, setUserPage] = useState(1);
+  const USERS_PER_PAGE = 8;
+
+  // Payments Search & Filter
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'successful' | 'failed'>('all');
   const [paymentSearch, setPaymentSearch] = useState('');
 
-  // Manual Test Payment Modal state
-  const [showManualVerifyModal, setShowManualVerifyModal] = useState(false);
-  const [testPayUserEmail, setTestPayUserEmail] = useState('');
-  const [testPayUserName, setTestPayUserName] = useState('');
-  const [testPayId, setTestPayId] = useState('');
+  // Individual User Inspection Modal
+  const [selectedUserForModal, setSelectedUserForModal] = useState<UserAnalyticsRecord | null>(null);
 
-  // Refresh Payment stats whenever payments or subscriptions change
+  // Manual Grant Modal
+  const [showManualGrantModal, setShowManualGrantModal] = useState(false);
+  const [manualEmail, setManualEmail] = useState('');
+  const [manualName, setManualName] = useState('');
+  const [manualPayId, setManualPayId] = useState('');
+
+  // Load and refresh all analytics
+  const refreshAllData = async () => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      setOverview(AnalyticsTrackingService.getOverviewMetrics(datePreset));
+      setUserGrowth(AnalyticsTrackingService.getUserGrowth(datePreset));
+      setActiveUsersStats(AnalyticsTrackingService.getActiveUserMetrics());
+      setAiUsage(AnalyticsTrackingService.getAIUsageMetrics(datePreset));
+      setFeatures(AnalyticsTrackingService.getFeatureUsage(datePreset));
+      setTokenAnalytics(AnalyticsTrackingService.getTokenAnalytics());
+      setFunnel(AnalyticsTrackingService.getConversionFunnel(datePreset));
+      setUserRecords(AnalyticsTrackingService.getUserAnalyticsRecords());
+      setRecentActivity(AnalyticsTrackingService.getRecentActivity(15));
+      setPayments(PaymentService.getPayments());
+      setReviews(CompetitiveService.getReviews());
+      const health = await AnalyticsTrackingService.getSystemHealth();
+      setSystemHealth(health);
+    } catch (err: any) {
+      setErrorMsg('Unable to refresh analytics. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const freshPayments = PaymentService.getPayments();
-    const freshSubs = PaymentService.getSubscriptions();
-    const freshUsers = PaymentService.getRegisteredUsers();
-    setPayments(freshPayments);
-    setSubscriptions(freshSubs);
-    setRegisteredUsers(freshUsers);
-    setPaymentStats(PaymentService.getAdminPaymentStats());
-  }, [activeTab]);
+    refreshAllData();
+  }, [datePreset, activeTab]);
 
   // Handle Admin Passcode Unlock
   const handleAdminUnlock = (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPasswordInput.trim() === 'safa2026' || adminPasswordInput.trim() === 'admin123' || user?.email === 'jaasirmuhammed@gmail.com') {
+    if (
+      adminPasswordInput.trim() === 'safa2026' ||
+      adminPasswordInput.trim() === 'admin123' ||
+      user?.email === 'jaasirmuhammed@gmail.com'
+    ) {
       setIsAdminUnlocked(true);
       localStorage.setItem('ai_whiteboard_admin_session', 'true');
-      showToast('Admin Portal Unlocked!', 'success');
+      showToast('Admin session unlocked successfully 🛡️', 'success');
     } else {
-      showToast('Invalid Admin Credentials.', 'error');
+      showToast('Invalid Admin Passcode! Access Denied.', 'error');
     }
   };
 
-  const handleResetAnalytics = () => {
-    const fresh = CompetitiveService.clearMockData();
-    setAnalytics(fresh);
-    setReviews([]);
-    showToast('Analytics reset to zero live visits!', 'success');
+  const handleAdminLock = () => {
+    setIsAdminUnlocked(false);
+    localStorage.removeItem('ai_whiteboard_admin_session');
+    showToast('Admin session locked.', 'info');
   };
 
-  const handleReviewStatusChange = (id: string, status: UserReview['status']) => {
-    const updated = CompetitiveService.updateReviewStatus(id, status);
-    setReviews(updated);
-    showToast(`Review status updated to ${status}`, 'info');
-  };
-
-  // Manual Payment Entry / Grant by Admin
-  const handleCreateManualPayment = (e: React.FormEvent) => {
+  // Manual Premium Grant Handler
+  const handleManualGrantSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!testPayUserEmail.trim()) {
-      showToast('Please provide a valid user email.', 'error');
+    if (!manualEmail.trim()) {
+      showToast('Please enter a student email', 'error');
       return;
     }
-
-    const dummyUser = {
-      id: 'usr_' + Date.now(),
-      name: testPayUserName.trim() || testPayUserEmail.split('@')[0],
-      email: testPayUserEmail.trim(),
+    const payId = manualPayId.trim() || `pay_manual_${Date.now()}`;
+    const targetUser = userRecords.find((u) => u.email.toLowerCase() === manualEmail.toLowerCase().trim()) || {
+      id: `usr_${Date.now()}`,
+      name: manualName.trim() || manualEmail.split('@')[0],
+      email: manualEmail.trim(),
       preferredLanguage: 'en',
-      preferredTheme: 'light' as const,
+      preferredTheme: 'light',
       createdAt: new Date().toISOString(),
       plan: 'premium' as const,
       tokensRemaining: 999999,
       subscriptionStatus: 'active' as const,
     };
 
-    const payId = testPayId.trim() || 'pay_' + Math.random().toString(36).substring(2, 12);
-    PaymentService.processSuccessfulUpgrade(dummyUser, payId, 120, 'INR', 'Admin Manual Activation');
-    
-    setPayments(PaymentService.getPayments());
-    setSubscriptions(PaymentService.getSubscriptions());
-    setPaymentStats(PaymentService.getAdminPaymentStats(166));
-    setShowManualVerifyModal(false);
-    setTestPayUserEmail('');
-    setTestPayUserName('');
-    setTestPayId('');
-    showToast(`Premium plan activated for ${dummyUser.email}! 👑`, 'success');
+    PaymentService.processSuccessfulUpgrade(
+      targetUser as any,
+      payId,
+      FIXED_PREMIUM_PRICE_INR,
+      'INR',
+      'Admin Manual Grant'
+    );
+
+    AnalyticsTrackingService.trackEvent('PLAN_UPGRADED', {
+      userId: targetUser.id,
+      userEmail: targetUser.email,
+      userName: targetUser.name,
+      metadata: { reason: 'Admin Manual Grant', payId },
+    });
+
+    showToast(`⭐ Premium plan granted to ${manualEmail}!`, 'success');
+    setShowManualGrantModal(false);
+    setManualEmail('');
+    setManualName('');
+    setManualPayId('');
+    refreshAllData();
   };
 
+  // Filtered Users Table Data
+  const filteredUsers = useMemo(() => {
+    return userRecords.filter((u) => {
+      const matchesSearch =
+        !userSearch ||
+        u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+        u.id.toLowerCase().includes(userSearch.toLowerCase());
+
+      const matchesPlan =
+        userPlanFilter === 'all' ||
+        (userPlanFilter === 'premium' && u.plan === 'premium') ||
+        (userPlanFilter === 'free' && u.plan === 'free');
+
+      return matchesSearch && matchesPlan;
+    });
+  }, [userRecords, userSearch, userPlanFilter]);
+
+  const totalUserPages = Math.ceil(filteredUsers.length / USERS_PER_PAGE) || 1;
+  const paginatedUsers = filteredUsers.slice((userPage - 1) * USERS_PER_PAGE, userPage * USERS_PER_PAGE);
+
+  // Filtered Payments Data
+  const filteredPayments = useMemo(() => {
+    return payments.filter((p) => {
+      const term = paymentSearch.toLowerCase().trim();
+      const matchesSearch =
+        !term ||
+        p.userName.toLowerCase().includes(term) ||
+        p.userEmail.toLowerCase().includes(term) ||
+        p.razorpayPaymentId.toLowerCase().includes(term);
+
+      const matchesFilter =
+        paymentFilter === 'all' ||
+        (paymentFilter === 'successful' && p.status === 'captured') ||
+        (paymentFilter === 'failed' && p.status === 'failed');
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [payments, paymentSearch, paymentFilter]);
+
+  // Render Passcode Gate if Locked
   if (!isAdminUnlocked) {
     return (
-      <div className="max-w-md mx-auto my-20 p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-            <Lock className="w-6 h-6" />
+      <div className="min-h-[85vh] flex items-center justify-center p-6 bg-slate-50 dark:bg-slate-950">
+        <div className="w-full max-w-md p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center shadow-inner">
+            <Lock className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold font-brand text-slate-900 dark:text-white">
-            Protected Admin Portal
-          </h2>
-          <p className="text-xs text-slate-500">
-            Sign in as <span className="font-semibold text-indigo-600">Administrator</span> or enter admin authorization code.
-          </p>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold font-brand text-slate-900 dark:text-white">Admin Operations Portal</h2>
+            <p className="text-xs text-slate-500">Authorized personnel only. Authenticate with your administrative credentials.</p>
+          </div>
+          <form onSubmit={handleAdminUnlock} className="space-y-4 text-left">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Admin Master Passcode
+              </label>
+              <input
+                type="password"
+                placeholder="Enter access passcode..."
+                value={adminPasswordInput}
+                onChange={(e) => setAdminPasswordInput(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                autoFocus
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Unlock Admin Portal
+            </button>
+          </form>
         </div>
-
-        <form onSubmit={handleAdminUnlock} className="space-y-4">
-          <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block mb-1.5">
-              Admin Authorization Passcode
-            </label>
-            <input
-              type="password"
-              value={adminPasswordInput}
-              onChange={(e) => setAdminPasswordInput(e.target.value)}
-              placeholder="Enter passcode (safa2026)..."
-              className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="btn-interactive w-full py-3.5 rounded-2xl bg-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-500/25"
-          >
-            Access Admin Dashboard
-          </button>
-        </form>
       </div>
     );
   }
 
-  // Filtered Payments computation
-  const filteredPayments = PaymentService.filterPayments(paymentFilter, paymentSearch);
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-in fade-in duration-300">
-      
-      {/* Top Header */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> Authenticated Administrator
-            </span>
-            <span className="text-xs text-slate-500 font-mono">Razorpay & Operations Hub</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-brand text-slate-900 dark:text-white mt-1">
-            System Admin & Revenue Operations
-          </h1>
-        </div>
+    <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row">
+      {/* Individual User Deep Dive Modal */}
+      <UserDetailModal user={selectedUserForModal} onClose={() => setSelectedUserForModal(null)} />
 
-        {/* Tab Selector */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 text-xs font-semibold">
-          {[
-            { id: 'payments', label: '💳 Razorpay Payments', icon: CreditCard },
-            { id: 'analytics', label: 'Overview Metrics', icon: TrendingUp },
-            { id: 'students', label: 'Registered Students', icon: Users },
-            { id: 'reviews', label: 'Reviews & Feedback', icon: Star },
-            { id: 'exams', label: 'Exam CRUD Manager', icon: BookOpen },
-            { id: 'charts', label: 'SVG Charts', icon: BarChart3 },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all ${
-                  isActive
-                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* TAB: PAYMENTS & PREMIUM USERS */}
-      {activeTab === 'payments' && (
-        <div className="space-y-6">
-          
-          {/* Top Live Statistics Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-            <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-indigo-500" /> Total Users
-              </span>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white font-brand">
-                {paymentStats.totalRegisteredUsers}
-              </div>
-              <span className="text-[10px] text-slate-400">Database users</span>
-            </div>
-
-            <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-sm space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                <Crown className="w-3.5 h-3.5 text-amber-500" /> Premium Users
-              </span>
-              <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 font-brand">
-                {paymentStats.totalPremiumUsers}
-              </div>
-              <span className="text-[10px] text-emerald-500 font-semibold">Active subscribers</span>
-            </div>
-
-            <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-slate-400" /> Free Users
-              </span>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white font-brand">
-                {paymentStats.totalFreeUsers}
-              </div>
-              <span className="text-[10px] text-slate-400">5 daily free tokens</span>
-            </div>
-
-            <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-emerald-500/30 dark:border-emerald-500/20 shadow-sm space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Successful
-              </span>
-              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-brand">
-                {paymentStats.totalSuccessfulPayments}
-              </div>
-              <span className="text-[10px] text-emerald-500">Captured payments</span>
-            </div>
-
-            <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-rose-500/30 dark:border-rose-500/20 shadow-sm space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                <XCircle className="w-3.5 h-3.5 text-rose-500" /> Failed / Cancelled
-              </span>
-              <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 font-brand">
-                {paymentStats.totalFailedPayments}
-              </div>
-              <span className="text-[10px] text-slate-400">Abandoned checkouts</span>
-            </div>
-
-            <div className="p-4 rounded-3xl bg-gradient-to-br from-indigo-900 via-indigo-950 to-purple-950 text-white shadow-md space-y-1 border border-indigo-700/40">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1">
-                <DollarSign className="w-3.5 h-3.5 text-amber-300" /> Total Revenue
-              </span>
-              <div className="text-2xl font-bold text-white font-brand">
-                ₹{paymentStats.totalRevenue.toLocaleString()}
-              </div>
-              <span className="text-[10px] text-indigo-200">Razorpay net revenue</span>
-            </div>
-          </div>
-
-          {/* Razorpay Webhook Configuration Banner */}
-          <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-xs text-slate-900 dark:text-white">
-                  Razorpay Payment Link & Webhook Configuration
-                </span>
-                <span className="px-2 py-0.2 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-bold">
-                  Active
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 font-mono">
-                Hosted Link: https://razorpay.me/@aiwhiteboardone • Webhook URL: /api/razorpay/webhook
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <a
-                href="https://razorpay.me/@aiwhiteboardone"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-              >
-                <span>View Payment Page</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-              </a>
-
-              <button
-                type="button"
-                onClick={() => setShowManualVerifyModal(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Manual Payment Entry</span>
+      {/* Manual Grant Modal */}
+      {showManualGrantModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Crown className="w-5 h-5 text-amber-500" />
+                Grant ⭐ Pro Scholar Plan
+              </h3>
+              <button onClick={() => setShowManualGrantModal(false)} className="text-slate-400 hover:text-slate-600">
+                <XCircle className="w-5 h-5" />
               </button>
             </div>
-          </div>
-
-          {/* Filter and Search Bar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {[
-                { id: 'all', label: 'All Records' },
-                { id: 'successful', label: 'Successful Payments' },
-                { id: 'failed', label: 'Failed Payments' },
-              ].map((f) => (
+            <form onSubmit={handleManualGrantSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-500 font-semibold mb-1">Student Email *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="student@university.edu"
+                  value={manualEmail}
+                  onChange={(e) => setManualEmail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-500 font-semibold mb-1">Student Name (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="Alex Rivera"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-500 font-semibold mb-1">Payment / Reference ID (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="pay_manual_grant"
+                  value={manualPayId}
+                  onChange={(e) => setManualPayId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono text-[11px]"
+                />
+              </div>
+              <div className="pt-2 flex gap-2">
                 <button
-                  key={f.id}
-                  onClick={() => setPaymentFilter(f.id as any)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    paymentFilter === f.id
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  type="button"
+                  onClick={() => setShowManualGrantModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold text-slate-600 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                >
+                  Confirm Grant
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 🚀 ADMIN SIDEBAR */}
+      {/* ========================================================================= */}
+      <aside className="w-full md:w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 shrink-0 flex flex-col justify-between">
+        <div className="space-y-6">
+          {/* Brand & Badge */}
+          <div className="flex items-center justify-between px-2 pt-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md shadow-indigo-600/30">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="font-bold text-sm font-brand leading-none text-slate-900 dark:text-white">
+                  Admin Portal
+                </h1>
+                <span className="text-[10px] text-emerald-500 font-semibold flex items-center gap-1 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Stream Active
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="space-y-1">
+            {[
+              { id: 'overview', label: 'Dashboard Overview', icon: Layers },
+              { id: 'user_analytics', label: 'User Growth & DAU', icon: Users },
+              { id: 'ai_usage', label: 'AI Usage & Synthesis', icon: Sparkles },
+              { id: 'features', label: 'Feature Analytics', icon: Sliders },
+              { id: 'tokens', label: 'Tokens & Limits', icon: Zap },
+              { id: 'payments', label: 'Revenue & Razorpay', icon: CreditCard },
+              { id: 'funnel', label: 'Conversion Funnel', icon: TrendingUp },
+              { id: 'users_table', label: 'User Directory', icon: FileText },
+              { id: 'system_health', label: 'System Health', icon: Server },
+              { id: 'reviews', label: 'Reviews & Feedback', icon: CheckCircle2 },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all ${
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
-                  {f.label}
+                  <div className="flex items-center gap-2.5">
+                    <Icon className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                  </div>
+                  {tab.id === 'tokens' && tokenAnalytics.usersAtLimit.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[9px] font-bold">
+                      {tokenAnalytics.usersAtLimit.length}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Sidebar Footer Controls */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+          <button
+            onClick={() => setShowManualGrantModal(true)}
+            className="w-full py-2 px-3 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-bold flex items-center justify-center gap-1.5 hover:bg-amber-500/20 transition-colors"
+          >
+            <Crown className="w-3.5 h-3.5" />
+            Grant Pro Plan
+          </button>
+
+          <button
+            onClick={handleAdminLock}
+            className="w-full py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-rose-500 transition-colors flex items-center justify-center gap-1.5"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            Lock Admin Session
+          </button>
+        </div>
+      </aside>
+
+      {/* ========================================================================= */}
+      {/* 🚀 MAIN ADMIN DASHBOARD CONTENT */}
+      {/* ========================================================================= */}
+      <main className="flex-1 p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl overflow-y-auto">
+        {/* Top Control Bar with Date Range Selector & CSV Export */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div>
+            <h2 className="text-xl font-bold font-brand text-slate-900 dark:text-white capitalize">
+              {activeTab.replace('_', ' ')}
+            </h2>
+            <p className="text-xs text-slate-500">
+              Live enterprise telemetry and verified revenue metrics
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Global Date Range Selector */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl text-xs font-semibold">
+              {[
+                { id: 'today', label: 'Today' },
+                { id: '7d', label: '7D' },
+                { id: '30d', label: '30D' },
+                { id: '90d', label: '90D' },
+                { id: 'this_month', label: 'This Month' },
+                { id: 'this_year', label: 'This Year' },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setDatePreset(p.id as any)}
+                  className={`px-3 py-1.5 rounded-xl transition-all ${
+                    datePreset === p.id
+                      ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-xs font-bold'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {p.label}
                 </button>
               ))}
             </div>
 
-            <div className="relative min-w-[260px]">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search user, email, payment ID..."
-                value={paymentSearch}
-                onChange={(e) => setPaymentSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-white outline-hidden focus:ring-2 focus:ring-indigo-500"
+            {/* CSV Export Dropdown */}
+            <div className="relative group">
+              <button className="px-3.5 py-2 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center gap-1.5 hover:bg-indigo-100 transition-colors">
+                <Download className="w-3.5 h-3.5" />
+                Export CSV
+              </button>
+              <div className="absolute right-0 top-full mt-1 w-44 p-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all z-30 space-y-1 text-xs">
+                <button
+                  onClick={() => AnalyticsTrackingService.exportToCSV('users')}
+                  className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium"
+                >
+                  Export Users CSV
+                </button>
+                <button
+                  onClick={() => AnalyticsTrackingService.exportToCSV('ai_usage')}
+                  className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium"
+                >
+                  Export AI Usage CSV
+                </button>
+                <button
+                  onClick={() => AnalyticsTrackingService.exportToCSV('payments')}
+                  className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium"
+                >
+                  Export Payments CSV
+                </button>
+                <button
+                  onClick={() => AnalyticsTrackingService.exportToCSV('activity')}
+                  className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium"
+                >
+                  Export Activity Log CSV
+                </button>
+              </div>
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={refreshAllData}
+              disabled={isLoading}
+              className="p-2 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
+              title="Refresh Data"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Error Alert */}
+        {errorMsg && (
+          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 flex items-center justify-between text-xs font-semibold">
+            <span>{errorMsg}</span>
+            <button onClick={refreshAllData} className="underline font-bold">
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 1: DASHBOARD OVERVIEW */}
+        {/* ========================================================================= */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* 11 Overview Metric Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {/* Card 1: Total Users */}
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Users</span>
+                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600">
+                    <Users className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">
+                  {overview.totalUsers.value}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-500">
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <span>+{overview.totalUsers.percentageChange}% vs prev period</span>
+                </div>
+              </div>
+
+              {/* Card 2: Active Users */}
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Active Users</span>
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
+                    <Activity className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">
+                  {overview.activeUsers.value}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                  <span>DAU: {activeUsersStats.dau} • WAU: {activeUsersStats.wau}</span>
+                </div>
+              </div>
+
+              {/* Card 3: AI Generations */}
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">AI Generations</span>
+                  <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">
+                  {overview.totalAIGenerations.value}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-500">
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <span>+{overview.totalAIGenerations.percentageChange}% this period</span>
+                </div>
+              </div>
+
+              {/* Card 4: Total Revenue */}
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Revenue</span>
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">
+                  ₹{overview.totalRevenue.value}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-600">
+                  <span>₹120 / Pro Subscriber</span>
+                </div>
+              </div>
+
+              {/* Card 5: Conversion Rate */}
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Conversion Rate</span>
+                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">
+                  {overview.conversionRate.value}%
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {overview.paidUsers.value} Paid / {overview.totalUsers.value} Total
+                </div>
+              </div>
+
+              {/* Card 6: Paid Users */}
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Paid Subscribers</span>
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
+                    <Crown className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold font-brand text-amber-600">
+                  {overview.paidUsers.value}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  Unlimited Token Tier
+                </div>
+              </div>
+
+              {/* Card 7: Free Users */}
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Free Tier Users</span>
+                  <div className="p-2 rounded-xl bg-slate-500/10 text-slate-600">
+                    <Users className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">
+                  {overview.freeUsers.value}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  5 Quota / day
+                </div>
+              </div>
+
+              {/* Card 8: Total Tokens Used */}
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Tokens Consumed</span>
+                  <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">
+                  {overview.totalTokensUsed.value}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  Avg {aiUsage.avgTokensPerUser} / user
+                </div>
+              </div>
+            </div>
+
+            {/* User Growth Chart Preview */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">User Growth & Activity Stream</h3>
+                  <p className="text-xs text-slate-400">Total registered vs active users over the selected time range</p>
+                </div>
+              </div>
+              <DynamicLineChart
+                data={userGrowth.map((dp) => ({
+                  label: dp.formattedDate,
+                  value: dp.totalUsers,
+                  secondaryValue: dp.activeUsers,
+                }))}
+                primaryColor="#6366f1"
+                secondaryColor="#10b981"
+                primaryLegend="Total Users"
+                secondaryLegend="Active Users"
+              />
+            </div>
+
+            {/* Two Column Section: Live Activity Feed & System Health Monitor */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Live Activity Feed */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-indigo-500" />
+                    Live Activity Stream
+                  </h3>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Recent Actions
+                  </span>
+                </div>
+
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {recentActivity.map((evt) => (
+                    <div
+                      key={evt.id}
+                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                        <div>
+                          <div className="font-semibold text-slate-800 dark:text-slate-200">
+                            {evt.userName || evt.userEmail || evt.userId}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            {evt.eventType.replace(/_/g, ' ')} {evt.feature ? `• ${evt.feature}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* System Health Monitor */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Server className="w-4 h-4 text-emerald-500" />
+                    Verified System Health
+                  </h3>
+                  <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">
+                    ● All Operational
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {systemHealth.map((sh) => (
+                    <div
+                      key={sh.id}
+                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          {sh.name}
+                        </div>
+                        <p className="text-[11px] text-slate-400">{sh.details}</p>
+                      </div>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">
+                        {sh.latencyMs}ms
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: USER ANALYTICS & DAU/WAU/MAU */}
+        {/* ========================================================================= */}
+        {activeTab === 'user_analytics' && (
+          <div className="space-y-6">
+            {/* DAU / WAU / MAU Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">DAU (Daily Active Users)</span>
+                <div className="text-3xl font-bold font-brand text-indigo-600 dark:text-indigo-400">
+                  {activeUsersStats.dau}
+                </div>
+                <p className="text-[11px] text-slate-400">Unique active user actions past 24 hours</p>
+              </div>
+
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">WAU (Weekly Active Users)</span>
+                <div className="text-3xl font-bold font-brand text-emerald-600 dark:text-emerald-400">
+                  {activeUsersStats.wau}
+                </div>
+                <p className="text-[11px] text-slate-400">Unique active user actions past 7 days</p>
+              </div>
+
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">MAU (Monthly Active Users)</span>
+                <div className="text-3xl font-bold font-brand text-sky-600 dark:text-sky-400">
+                  {activeUsersStats.mau}
+                </div>
+                <p className="text-[11px] text-slate-400">Unique active user actions past 30 days</p>
+              </div>
+            </div>
+
+            {/* Interactive Growth Chart */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Historical User Growth & Retention Curves
+              </h3>
+              <DynamicLineChart
+                data={userGrowth.map((dp) => ({
+                  label: dp.formattedDate,
+                  value: dp.totalUsers,
+                  secondaryValue: dp.returningUsers,
+                }))}
+                primaryColor="#6366f1"
+                secondaryColor="#f59e0b"
+                primaryLegend="Cumulative Users"
+                secondaryLegend="Returning Users"
               />
             </div>
           </div>
+        )}
 
-          {/* Payments Data Table */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold font-brand text-slate-900 dark:text-white">
-                Razorpay Payment Transactions & Subscriptions ({filteredPayments.length})
+        {/* ========================================================================= */}
+        {/* TAB 3: AI USAGE ANALYTICS */}
+        {/* ========================================================================= */}
+        {activeTab === 'ai_usage' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total AI Requests</span>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">{aiUsage.totalRequests}</div>
+                <span className="text-[11px] text-emerald-500 font-semibold">{aiUsage.successRate}% Success Rate</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Requests Today</span>
+                <div className="text-2xl font-bold font-brand text-indigo-600">{aiUsage.requestsToday}</div>
+                <span className="text-[11px] text-slate-400">{aiUsage.requestsThisWeek} This Week</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Avg Gens / User</span>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">{aiUsage.avgGenerationsPerUser}</div>
+                <span className="text-[11px] text-slate-400">Across active cohorts</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Tokens</span>
+                <div className="text-2xl font-bold font-brand text-purple-600">{aiUsage.totalTokensConsumed}</div>
+                <span className="text-[11px] text-slate-400">Avg {aiUsage.avgTokensPerUser} / user</span>
+              </div>
+            </div>
+
+            {/* Time Series Chart */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">AI Request Volume & Token Velocity</h3>
+              <DynamicLineChart
+                data={aiUsage.timeSeries.map((ts) => ({
+                  label: ts.date,
+                  value: ts.requests,
+                  secondaryValue: ts.tokens,
+                }))}
+                primaryColor="#0ea5e9"
+                secondaryColor="#8b5cf6"
+                primaryLegend="AI Requests"
+                secondaryLegend="Tokens Consumed"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 4: FEATURE USAGE */}
+        {/* ========================================================================= */}
+        {activeTab === 'features' && (
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-6">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Feature Adoption & Synthesis Share</h3>
+              <p className="text-xs text-slate-400">Real usage events categorized across AI generators, drawing canvas, and tools</p>
+            </div>
+            <FeatureDistributionBars features={features} />
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 5: TOKEN & CREDIT ANALYTICS */}
+        {/* ========================================================================= */}
+        {activeTab === 'tokens' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Credits Consumed</span>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">{tokenAnalytics.totalConsumed}</div>
+                <span className="text-[11px] text-slate-400">{tokenAnalytics.consumedToday} today</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Avg Credits / User</span>
+                <div className="text-2xl font-bold font-brand text-indigo-600">{tokenAnalytics.avgCreditsPerUser}</div>
+                <span className="text-[11px] text-slate-400">Out of 5 free quota</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Users At Limit</span>
+                <div className="text-2xl font-bold font-brand text-rose-600">{tokenAnalytics.usersAtLimit.length}</div>
+                <span className="text-[11px] text-rose-500 font-semibold">100% quota exhausted</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Users Near Limit</span>
+                <div className="text-2xl font-bold font-brand text-amber-600">{tokenAnalytics.usersNearLimit.length}</div>
+                <span className="text-[11px] text-amber-600 font-semibold">&gt;80% quota consumed</span>
+              </div>
+            </div>
+
+            {/* Users at Limit Alert Table */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-rose-500" />
+                  Upgrade Candidate Alerts (Quota Exhausted)
+                </h3>
+                <span className="text-xs text-slate-400">Prime candidates for Pro Scholar upgrade</span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                      <th className="py-3 px-4">Student</th>
+                      <th className="py-3 px-4">Email</th>
+                      <th className="py-3 px-4">Used / Total</th>
+                      <th className="py-3 px-4">Usage %</th>
+                      <th className="py-3 px-4">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                    {[...tokenAnalytics.usersAtLimit, ...tokenAnalytics.usersNearLimit].map((u) => (
+                      <tr key={u.userId} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{u.userName}</td>
+                        <td className="py-3 px-4 font-mono text-[11px] text-slate-500">{u.userEmail}</td>
+                        <td className="py-3 px-4 font-semibold">{u.tokensUsed} / {u.tokensTotal}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              u.percentageUsed >= 100
+                                ? 'bg-rose-500/10 text-rose-600'
+                                : 'bg-amber-500/10 text-amber-600'
+                            }`}
+                          >
+                            {u.percentageUsed}% Exhausted
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <button
+                            onClick={() => {
+                              setManualEmail(u.userEmail);
+                              setManualName(u.userName);
+                              setShowManualGrantModal(true);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-bold text-[10px] hover:bg-indigo-700 transition-colors"
+                          >
+                            Upgrade
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 6: PAYMENTS & REVENUE */}
+        {/* ========================================================================= */}
+        {activeTab === 'payments' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Revenue</span>
+                <div className="text-2xl font-bold font-brand text-slate-900 dark:text-white">₹{overview.totalRevenue.value}</div>
+                <span className="text-[11px] text-emerald-500 font-semibold">100% Captured</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Successful Checkouts</span>
+                <div className="text-2xl font-bold font-brand text-emerald-600">
+                  {payments.filter((p) => p.status === 'captured').length}
+                </div>
+                <span className="text-[11px] text-slate-400">Razorpay Verified</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Failed / Abandoned</span>
+                <div className="text-2xl font-bold font-brand text-rose-600">
+                  {payments.filter((p) => p.status === 'failed').length}
+                </div>
+                <span className="text-[11px] text-slate-400">Declined cards / UPI</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Plan Price</span>
+                <div className="text-2xl font-bold font-brand text-amber-600">₹{FIXED_PREMIUM_PRICE_INR}</div>
+                <span className="text-[11px] text-slate-400">30-day Validity</span>
+              </div>
+            </div>
+
+            {/* Payments Table */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Razorpay Verified Transaction Stream
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search transactions..."
+                      value={paymentSearch}
+                      onChange={(e) => setPaymentSearch(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <select
+                    value={paymentFilter}
+                    onChange={(e) => setPaymentFilter(e.target.value as any)}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="successful">Captured Only</option>
+                    <option value="failed">Failed Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                      <th className="py-3 px-4">Transaction / Razorpay ID</th>
+                      <th className="py-3 px-4">User</th>
+                      <th className="py-3 px-4">Amount</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Method</th>
+                      <th className="py-3 px-4">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                    {filteredPayments.map((p) => (
+                      <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="py-3 px-4 font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                          {p.razorpayPaymentId}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900 dark:text-white">{p.userName}</div>
+                          <div className="text-[10px] text-slate-400">{p.userEmail}</div>
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                          ₹{p.amount || FIXED_PREMIUM_PRICE_INR}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              p.status === 'captured'
+                                ? 'bg-emerald-500/10 text-emerald-600'
+                                : 'bg-rose-500/10 text-rose-600'
+                            }`}
+                          >
+                            {p.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500">{p.paymentMethod || 'UPI / Card'}</td>
+                        <td className="py-3 px-4 text-slate-400 text-[11px]">
+                          {p.paidAt ? new Date(p.paidAt).toLocaleString() : 'Recent'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 7: CONVERSION FUNNEL */}
+        {/* ========================================================================= */}
+        {activeTab === 'funnel' && (
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-6">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                9-Stage User Conversion Funnel
               </h3>
-              <span className="text-[11px] text-slate-400 font-mono">Instant Server-Side Verified</span>
+              <p className="text-xs text-slate-400">
+                Identifies friction and user drop-off points from initial visit to active paid subscriber
+              </p>
+            </div>
+            <FunnelBarChart stages={funnel} />
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 8: USER DIRECTORY & DEEP DIVE */}
+        {/* ========================================================================= */}
+        {activeTab === 'users_table' && (
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Student Account Directory</h3>
+                <p className="text-xs text-slate-400">Click any user record to open detailed individual analytics</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email..."
+                    value={userSearch}
+                    onChange={(e) => {
+                      setUserSearch(e.target.value);
+                      setUserPage(1);
+                    }}
+                    className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+                <select
+                  value={userPlanFilter}
+                  onChange={(e) => {
+                    setUserPlanFilter(e.target.value as any);
+                    setUserPage(1);
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300"
+                >
+                  <option value="all">All Plans</option>
+                  <option value="premium">⭐ Pro Only</option>
+                  <option value="free">Free Only</option>
+                </select>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-3">User</th>
-                    <th className="py-3 px-3">Email</th>
-                    <th className="py-3 px-3">Plan</th>
-                    <th className="py-3 px-3">Payment Status</th>
-                    <th className="py-3 px-3">Amount</th>
-                    <th className="py-3 px-3">Payment ID</th>
-                    <th className="py-3 px-3">Payment Method</th>
-                    <th className="py-3 px-3">Date</th>
+                    <th className="py-3 px-4">Student</th>
+                    <th className="py-3 px-4">Email</th>
+                    <th className="py-3 px-4">Plan</th>
+                    <th className="py-3 px-4">AI Gens</th>
+                    <th className="py-3 px-4">Credits Remaining</th>
+                    <th className="py-3 px-4">Revenue</th>
+                    <th className="py-3 px-4">Last Active</th>
+                    <th className="py-3 px-4">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-slate-700 dark:text-slate-300">
-                  {filteredPayments.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
-                        No payment records found matching the search/filter.
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                  {paginatedUsers.map((u) => (
+                    <tr
+                      key={u.id}
+                      onClick={() => setSelectedUserForModal(u)}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                    >
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        {u.plan === 'premium' && <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                        <span>{u.name}</span>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">{u.email}</td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            u.plan === 'premium'
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                          }`}
+                        >
+                          {u.plan === 'premium' ? 'PRO ⭐' : 'FREE'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold">{u.aiGenerationsCount}</td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                        {u.plan === 'premium' ? '∞' : u.tokensRemaining}
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
+                        ₹{u.totalRevenueGenerated}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400 text-[11px]">
+                        {new Date(u.lastActive).toLocaleDateString()}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedUserForModal(u);
+                          }}
+                          className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-600 hover:text-white transition-colors text-[10px] font-bold"
+                        >
+                          Inspect
+                        </button>
                       </td>
                     </tr>
-                  ) : (
-                    filteredPayments.map((p) => {
-                      const sub = subscriptions.find((s) => s.userId === p.userId);
-                      return (
-                        <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3 px-3 font-bold text-slate-900 dark:text-white">
-                            <div className="flex items-center gap-1.5">
-                              {p.status === 'captured' && <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                              <span>{p.userName}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">{p.userEmail}</td>
-                          <td className="py-3 px-3">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              p.status === 'captured'
-                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                            }`}>
-                              {p.status === 'captured' ? 'PREMIUM' : 'FREE'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              p.status === 'captured'
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                            }`}>
-                              {p.status === 'captured' ? (
-                                <>
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                                  <span>Captured</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="w-3 h-3 text-rose-500" />
-                                  <span>Failed</span>
-                                </>
-                              )}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 font-extrabold text-slate-900 dark:text-white">
-                            ₹{p.amount}
-                          </td>
-                          <td className="py-3 px-3 font-mono text-[11px] text-slate-500 select-all">
-                            {p.razorpayPaymentId}
-                          </td>
-                          <td className="py-3 px-3 text-slate-500 text-[11px]">
-                            {p.paymentMethod || 'UPI'}
-                          </td>
-                          <td className="py-3 px-3 text-slate-400 text-[10px]">
-                            {new Date(p.paidAt).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
-          </div>
 
-          {/* Manual Payment Verification Modal */}
-          {showManualVerifyModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-              <div className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">
-                    Manual Payment & Premium Grant
-                  </h4>
-                  <button onClick={() => setShowManualVerifyModal(false)} className="text-slate-400 hover:text-slate-600 text-xs font-bold">
-                    ✕
-                  </button>
-                </div>
-
-                <form onSubmit={handleCreateManualPayment} className="space-y-3 text-xs">
-                  <div>
-                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Student / User Email</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="user@example.com"
-                      value={testPayUserEmail}
-                      onChange={(e) => setTestPayUserEmail(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">User Full Name</label>
-                    <input
-                      type="text"
-                      placeholder="User Name"
-                      value={testPayUserName}
-                      onChange={(e) => setTestPayUserName(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Razorpay Payment ID (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="pay_..."
-                      value={testPayId}
-                      onChange={(e) => setTestPayId(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono text-[11px]"
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => setShowManualVerifyModal(false)}
-                      className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-                    >
-                      Grant Premium
-                    </button>
-                  </div>
-                </form>
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+              <span className="text-slate-400">
+                Showing {paginatedUsers.length} of {filteredUsers.length} users
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={userPage <= 1}
+                  onClick={() => setUserPage((p) => Math.max(1, p - 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="font-bold text-slate-700 dark:text-slate-300">
+                  {userPage} / {totalUserPages}
+                </span>
+                <button
+                  disabled={userPage >= totalUserPages}
+                  onClick={() => setUserPage((p) => Math.min(totalUserPages, p + 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          )}
-
-        </div>
-      )}
-
-      {/* TAB 1: OVERVIEW ANALYTICS */}
-      {activeTab === 'analytics' && (
-        <div className="space-y-8">
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-900/60 text-xs">
-            <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span className="font-bold">Real-Time Live Analytics:</span>
-              <span>Tracking real user visits, page views, and quiz attempts.</span>
-            </div>
-
-            <button
-              onClick={handleResetAnalytics}
-              className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold border border-rose-500/30 transition-colors flex items-center gap-1.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Reset Analytics to 0</span>
-            </button>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <Eye className="w-4 h-4 text-indigo-500" /> Total Site Visits
-              </span>
-              <div className="text-3xl font-bold text-slate-900 dark:text-white font-brand">
-                {analytics.totalVisits.toLocaleString()}
-              </div>
-              <span className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1">
-                <ArrowUpRight className="w-3.5 h-3.5" /> +14.2% this month
-              </span>
+        {/* ========================================================================= */}
+        {/* TAB 9: SYSTEM HEALTH */}
+        {/* ========================================================================= */}
+        {activeTab === 'system_health' && (
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-6">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">System Health & Live Infrastructure</h3>
+              <p className="text-xs text-slate-400">Automated latency and operational status verification across platform services</p>
             </div>
 
-            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-purple-500" /> Unique Visitors
-              </span>
-              <div className="text-3xl font-bold text-slate-900 dark:text-white font-brand">
-                {analytics.uniqueVisitors.toLocaleString()}
-              </div>
-              <span className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1">
-                <ArrowUpRight className="w-3.5 h-3.5" /> Privacy-conscious cookies
-              </span>
-            </div>
-
-            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <BarChart3 className="w-4 h-4 text-emerald-500" /> Total Page Views
-              </span>
-              <div className="text-3xl font-bold text-slate-900 dark:text-white font-brand">
-                {analytics.pageViews.toLocaleString()}
-              </div>
-              <span className="text-[11px] text-slate-400">Avg 4.2 pages/session</span>
-            </div>
-
-            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <CheckCircle className="w-4 h-4 text-amber-500" /> MCQ Test Attempts
-              </span>
-              <div className="text-3xl font-bold text-slate-900 dark:text-white font-brand">
-                {analytics.mcqAttempts.toLocaleString()}
-              </div>
-              <span className="text-[11px] text-slate-400">Avg score 74.8%</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: REGISTERED STUDENTS */}
-      {activeTab === 'students' && (
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold font-brand text-slate-900 dark:text-white">
-              Registered Student Accounts
-            </h3>
-            <span className="text-xs text-slate-500">Stored with secure password hashing</span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-4">Student Name</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Plan Status</th>
-                  <th className="py-3 px-4">Tokens Remaining</th>
-                  <th className="py-3 px-4">Registration Date</th>
-                  <th className="py-3 px-4">Preferred Language</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-slate-700 dark:text-slate-300">
-                {registeredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400">
-                      No registered student accounts yet.
-                    </td>
-                  </tr>
-                ) : (
-                  registeredUsers.map((stu) => {
-                    const isPrem = stu.plan === 'premium' || stu.subscriptionStatus === 'active';
-                    return (
-                      <tr key={stu.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
-                          <div className="flex items-center gap-1.5">
-                            {isPrem && <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                            <span>{stu.name}</span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">{stu.email}</td>
-                        <td className="py-3.5 px-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            isPrem
-                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                          }`}>
-                            {isPrem ? 'PREMIUM ⭐' : 'FREE'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-700 dark:text-slate-300">
-                          {isPrem ? 'Unlimited (∞)' : `${stu.tokensRemaining ?? 5} Left`}
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-400 text-[11px]">
-                          {stu.createdAt ? new Date(stu.createdAt).toLocaleDateString() : 'Active'}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold text-[10px] uppercase">
-                            {stu.preferredLanguage || 'en'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: REVIEWS */}
-      {activeTab === 'reviews' && (
-        <div className="space-y-6">
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <h3 className="text-base font-bold font-brand text-slate-900 dark:text-white">
-              Student Reviews & Testimonials Moderation
-            </h3>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-              {reviews.map((r) => (
-                <div key={r.id} className="py-3.5 flex items-center justify-between gap-4">
-                  <div>
-                    <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <span>{r.userName}</span>
-                      <span className="text-amber-500">{'★'.repeat(r.rating)}</span>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-300 mt-0.5">{r.message}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {systemHealth.map((sh) => (
+                <div
+                  key={sh.id}
+                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-2 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900 dark:text-white">{sh.name}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-bold text-[10px]">
+                      OPERATIONAL
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleReviewStatusChange(r.id, 'approved')}
-                      className={`px-3 py-1 rounded-lg font-bold text-[11px] ${
-                        r.status === 'approved'
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
-                      }`}
-                    >
-                      Approved
-                    </button>
-                    <button
-                      onClick={() => handleReviewStatusChange(r.id, 'archived')}
-                      className={`px-3 py-1 rounded-lg font-bold text-[11px] ${
-                        r.status === 'archived'
-                          ? 'bg-rose-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
-                      }`}
-                    >
-                      Archive
-                    </button>
+                  <p className="text-slate-500">{sh.details}</p>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span>Response Latency:</span>
+                    <span className="font-mono font-bold text-emerald-500">{sh.latencyMs} ms</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* TAB 4: EXAMS */}
-      {activeTab === 'exams' && (
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold font-brand text-slate-900 dark:text-white">
-              Competitive Exam Modules ({exams.length})
-            </h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {exams.map((ex) => (
-              <div key={ex.id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1">
-                <div className="font-bold text-xs text-slate-900 dark:text-white">{ex.name}</div>
-                <div className="text-[11px] text-slate-400">{ex.country} • {ex.category}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 5: SVG CHARTS */}
-      {activeTab === 'charts' && (
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <h3 className="text-base font-bold font-brand text-slate-900 dark:text-white">
-            Visitor Traffic & Revenue Growth Trend
-          </h3>
-          <div className="h-56 w-full flex items-end gap-3 pt-6 border-b border-slate-200 dark:border-slate-800 pb-2">
-            {[45, 62, 78, 92, 115, 140, 166].map((h, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+        {/* ========================================================================= */}
+        {/* TAB 10: REVIEWS & FEEDBACK */}
+        {/* ========================================================================= */}
+        {activeTab === 'reviews' && (
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">Student Reviews & Moderation Queue</h3>
+            <div className="space-y-3">
+              {reviews.map((r) => (
                 <div
-                  className="w-full rounded-t-xl bg-gradient-to-t from-indigo-600 to-purple-500 transition-all duration-500"
-                  style={{ height: `${(h / 166) * 100}%` }}
-                />
-                <span className="text-[10px] text-slate-400">Day {i + 1}</span>
-              </div>
-            ))}
+                  key={r.id}
+                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-2 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white">{r.userName}</span>
+                      <span className="text-slate-400 ml-2 font-mono text-[11px]">({r.userEmail})</span>
+                    </div>
+                    <span className="text-amber-500 font-bold">{'★'.repeat(r.rating)}</span>
+                  </div>
+                  <p className="text-slate-700 dark:text-slate-300 font-medium">{r.title}</p>
+                  <p className="text-slate-500 text-xs">{r.message}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-
+        )}
+      </main>
     </div>
   );
 };
