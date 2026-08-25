@@ -95,6 +95,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
 
   // UI notifications
   const [detectedShapeToast, setDetectedShapeToast] = useState<string | null>(null);
+  const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   // High-performance 120Hz Telemetry
   const frameCountRef = useRef(0);
@@ -265,6 +266,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         const w = el.width || 200;
         const h = el.height || 160;
         if (worldX >= el.x && worldX <= el.x + w && worldY >= el.y && worldY <= el.y + h) {
+          return el;
+        }
+      } else if (el.type === 'image') {
+        const imgEl = el as any;
+        const w = imgEl.width || 200;
+        const h = imgEl.height || 150;
+        if (worldX >= imgEl.x && worldX <= imgEl.x + w && worldY >= imgEl.y && worldY <= imgEl.y + h) {
           return el;
         }
       } else if (el.type === 'shape') {
@@ -553,6 +561,21 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
           bCtx.lineTo(el.x + metrics.width, el.y + 4);
           bCtx.stroke();
         }
+      } else if (el.type === 'image') {
+        const imgEl = el as any;
+        let cached = imageCacheRef.current.get(imgEl.src);
+        if (!cached) {
+          cached = new Image();
+          cached.src = imgEl.src;
+          cached.onload = () => {
+            isBufferDirtyRef.current = true;
+          };
+          imageCacheRef.current.set(imgEl.src, cached);
+        }
+        if (cached.complete && cached.naturalWidth > 0) {
+          bCtx.globalAlpha = imgEl.opacity || 1;
+          bCtx.drawImage(cached, imgEl.x, imgEl.y, imgEl.width, imgEl.height);
+        }
       }
 
       bCtx.restore();
@@ -675,6 +698,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
             selH = selectedEl.height || 160;
             selX = selectedEl.x;
             selY = selectedEl.y;
+          } else if (selectedEl.type === 'image') {
+            selW = (selectedEl as any).width || 200;
+            selH = (selectedEl as any).height || 150;
+            selX = (selectedEl as any).x;
+            selY = (selectedEl as any).y;
           }
 
           ctx.strokeRect(selX, selY, selW, selH);
@@ -799,15 +827,16 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
 
     // Tool Handlers
     if (props.activeTool === 'pen' || props.activeTool === 'pencil' || props.activeTool === 'highlighter') {
-      const toolType = props.activeTool === 'pencil' ? props.activePencil : props.activePen;
+      const isHighlighter = props.activeTool === 'highlighter';
+      const toolType = props.activeTool === 'pencil' ? props.activePencil : (isHighlighter ? 'highlighter' : props.activePen);
       currentStrokeRef.current = {
         id: 'stroke_' + Date.now(),
         type: 'stroke',
         tool: toolType,
         points: [{ x: worldCoord.x, y: worldCoord.y, pressure: e.pressure || 0.5, time: Date.now() }],
         color: props.color,
-        width: props.strokeWidth,
-        opacity: props.opacity,
+        width: isHighlighter ? Math.max(16, props.strokeWidth * 2.2) : props.strokeWidth,
+        opacity: isHighlighter ? 0.35 : (props.opacity || 1),
         timestamp: Date.now(),
         layerId: props.activeLayerId,
       };

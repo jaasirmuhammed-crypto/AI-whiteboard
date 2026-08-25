@@ -53,7 +53,8 @@ export const AdminDashboardView: React.FC = () => {
   // Payments & Subscription Management State
   const [payments, setPayments] = useState<PaymentRecord[]>(() => PaymentService.getPayments());
   const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>(() => PaymentService.getSubscriptions());
-  const [paymentStats, setPaymentStats] = useState<AdminPaymentStats>(() => PaymentService.getAdminPaymentStats(166));
+  const [registeredUsers, setRegisteredUsers] = useState<any[]>(() => PaymentService.getRegisteredUsers());
+  const [paymentStats, setPaymentStats] = useState<AdminPaymentStats>(() => PaymentService.getAdminPaymentStats());
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'premium' | 'free' | 'successful' | 'failed'>('all');
   const [paymentSearch, setPaymentSearch] = useState('');
 
@@ -67,9 +68,11 @@ export const AdminDashboardView: React.FC = () => {
   useEffect(() => {
     const freshPayments = PaymentService.getPayments();
     const freshSubs = PaymentService.getSubscriptions();
+    const freshUsers = PaymentService.getRegisteredUsers();
     setPayments(freshPayments);
     setSubscriptions(freshSubs);
-    setPaymentStats(PaymentService.getAdminPaymentStats(166));
+    setRegisteredUsers(freshUsers);
+    setPaymentStats(PaymentService.getAdminPaymentStats());
   }, [activeTab]);
 
   // Handle Admin Passcode Unlock
@@ -601,48 +604,58 @@ export const AdminDashboardView: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase tracking-wider">
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
                   <th className="py-3 px-4">Student Name</th>
                   <th className="py-3 px-4">Email</th>
                   <th className="py-3 px-4">Plan Status</th>
+                  <th className="py-3 px-4">Tokens Remaining</th>
                   <th className="py-3 px-4">Registration Date</th>
-                  <th className="py-3 px-4">Preferred Target Exam</th>
+                  <th className="py-3 px-4">Preferred Language</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-slate-700 dark:text-slate-300">
-                <tr>
-                  <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">Dr. Sarah Chen</td>
-                  <td className="py-3.5 px-4">sarah.chen@stanford.edu</td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 font-bold text-[10px]">
-                      PREMIUM ⭐
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4">2026-08-01</td>
-                  <td className="py-3.5 px-4"><span className="px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-semibold">USMLE Step 1</span></td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">Rohit Sharma</td>
-                  <td className="py-3.5 px-4">rohit.iitd@gmail.com</td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 font-bold text-[10px]">
-                      PREMIUM ⭐
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4">2026-08-04</td>
-                  <td className="py-3.5 px-4"><span className="px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-semibold">JEE Advanced</span></td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">Alex Rivera</td>
-                  <td className="py-3.5 px-4">alex.rivera@mit.edu</td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold text-[10px]">
-                      FREE
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4">2026-08-10</td>
-                  <td className="py-3.5 px-4"><span className="px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-semibold">GRE General</span></td>
-                </tr>
+                {registeredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400">
+                      No registered student accounts yet.
+                    </td>
+                  </tr>
+                ) : (
+                  registeredUsers.map((stu) => {
+                    const isPrem = stu.plan === 'premium' || stu.subscriptionStatus === 'active';
+                    return (
+                      <tr key={stu.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
+                          <div className="flex items-center gap-1.5">
+                            {isPrem && <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                            <span>{stu.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">{stu.email}</td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            isPrem
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                          }`}>
+                            {isPrem ? 'PREMIUM ⭐' : 'FREE'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-semibold text-slate-700 dark:text-slate-300">
+                          {isPrem ? 'Unlimited (∞)' : `${stu.tokensRemaining ?? 5} Left`}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-400 text-[11px]">
+                          {stu.createdAt ? new Date(stu.createdAt).toLocaleDateString() : 'Active'}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold text-[10px] uppercase">
+                            {stu.preferredLanguage || 'en'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

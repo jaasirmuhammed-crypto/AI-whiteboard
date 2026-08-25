@@ -344,6 +344,42 @@ const MainAppContent: React.FC = () => {
     }
   };
 
+  const handleImageUpload = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file (PNG, JPG, WebP).', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (!dataUrl) return;
+      const img = new Image();
+      img.onload = () => {
+        const maxW = 340;
+        const aspect = img.height / (img.width || 1);
+        const width = Math.min(img.width || maxW, maxW);
+        const height = width * aspect;
+
+        const newImageElement: any = {
+          id: 'img_' + Date.now(),
+          type: 'image',
+          x: (-panOffset.x + window.innerWidth / 2 - width / 2) / (scale || 1),
+          y: (-panOffset.y + window.innerHeight / 2 - height / 2) / (scale || 1),
+          width,
+          height,
+          src: dataUrl,
+          opacity: 1,
+        };
+
+        const updated = [...(currentProject?.elements || []), newImageElement];
+        updateCurrentProjectElements(updated);
+        showToast('Image inserted onto whiteboard! 🖼️', 'success');
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handlePaymentSuccessActivation = () => {
     upgradeToPremium('pay_live_verified');
     setQuotaState({
@@ -577,7 +613,7 @@ const MainAppContent: React.FC = () => {
               }}
             />
 
-            {/* Floating Tools Dock */}
+            {/* Clean Floating Tools Dock */}
             <FloatingToolbar
               activeTool={activeTool}
               activePen={activePen}
@@ -598,6 +634,9 @@ const MainAppContent: React.FC = () => {
                 if (pen.includes('pencil')) {
                   setActivePencil(pen as PencilType);
                   setActiveTool('pencil');
+                } else if (pen === 'highlighter') {
+                  setActivePen('highlighter');
+                  setActiveTool('highlighter');
                 } else {
                   setActivePen(pen as PenType);
                   setActiveTool('pen');
@@ -617,6 +656,19 @@ const MainAppContent: React.FC = () => {
               onItalicToggle={() => setIsItalic(!isItalic)}
               onUnderlineToggle={() => setIsUnderline(!isUnderline)}
               onAlignChange={setTextAlign}
+              canUndo={canvasRef.current?.canUndo || false}
+              canRedo={canvasRef.current?.canRedo || false}
+              onUndo={() => canvasRef.current?.undo()}
+              onRedo={() => canvasRef.current?.redo()}
+              onClear={() => setClearModalOpen(true)}
+              onImageUpload={handleImageUpload}
+              scale={scale}
+              onZoomIn={() => setScale((s) => Math.min(4, s + 0.2))}
+              onZoomOut={() => setScale((s) => Math.max(0.25, s - 0.2))}
+              onResetZoom={() => {
+                setScale(1);
+                setPanOffset({ x: 0, y: 0 });
+              }}
             />
 
             {/* Viewport Zoom & Pan Controls */}
