@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   Plus, 
   Search, 
@@ -8,237 +8,417 @@ import {
   Network, 
   Sparkles, 
   FolderPlus,
-  BookOpen,
-  Filter
+  BookOpen, 
+  Filter,
+  Zap,
+  User,
+  Crown,
+  LayoutDashboard,
+  Clock,
+  ArrowRight,
+  TrendingUp,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useProject } from '../../context/ProjectContext';
 import { useI18n } from '../../i18n';
-import { ProjectCard } from './ProjectCard';
 import { useToast } from '../common/Toast';
+import { WhiteboardProject } from '../../types/user';
+import { PresentationData, MCQQuizData } from '../../types/studyMaterial';
+
+// Modals & Section Components
+import { CreateWhiteboardModal } from './CreateWhiteboardModal';
+import { RecentWhiteboardsSection } from './RecentWhiteboardsSection';
+import { SavedNotesSection } from './SavedNotesSection';
+import { GeneratedPPTsSection } from './GeneratedPPTsSection';
+import { GeneratedQuizzesSection } from './GeneratedQuizzesSection';
+import { MindMapsSection } from './MindMapsSection';
+import { UsageTokenBalanceCard } from './UsageTokenBalanceCard';
+import { AccountPlanCard } from './AccountPlanCard';
+import { NoteDetailModal } from './NoteDetailModal';
+import { PPTPreviewModal } from './PPTPreviewModal';
+import { QuizPreviewModal } from './QuizPreviewModal';
+import { TokensExhaustedModal } from '../common/TokensExhaustedModal';
+
+export type DashboardTab = 
+  | 'overview' 
+  | 'whiteboards' 
+  | 'notes' 
+  | 'ppts' 
+  | 'quizzes' 
+  | 'mindmaps' 
+  | 'usage' 
+  | 'account';
 
 export const DashboardView: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isPremium } = useAuth();
   const { t } = useI18n();
-  const { projects, createProject, loadProject, deleteProject, setCurrentView } = useProject();
+  const { projects, createProject, loadProject, deleteProject } = useProject();
   const { showToast } = useToast();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'ppt' | 'mcq' | 'mindmap'>('all');
+  // Active Tab
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
 
-  const filteredProjects = projects.filter((p) => {
-    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase());
-    if (!matchesSearch) return false;
-    if (filterType === 'ppt') return !!p.studyMaterials?.presentation;
-    if (filterType === 'mcq') return !!p.studyMaterials?.quiz;
-    if (filterType === 'mindmap') return !!p.studyMaterials?.mindMap;
-    return true;
-  });
+  // Modals
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [selectedNoteProject, setSelectedNoteProject] = useState<WhiteboardProject | null>(null);
+  const [selectedPPT, setSelectedPPT] = useState<PresentationData | null>(null);
+  const [selectedQuiz, setSelectedQuiz] = useState<MCQQuizData | null>(null);
 
+  // Computed Metrics
+  const totalNotebooks = projects.length;
+  const totalNotes = projects.filter(p => p.studyMaterials?.summary || p.elements.some(el => el.type === 'text' || el.type === 'sticky')).length;
   const totalPPTs = projects.filter(p => p.studyMaterials?.presentation).length;
-  const totalMCQs = projects.filter(p => p.studyMaterials?.quiz).length;
+  const totalQuizzes = projects.filter(p => p.studyMaterials?.quiz).length;
   const totalMindMaps = projects.filter(p => p.studyMaterials?.mindMap).length;
 
-  const handleCreateNew = () => {
-    createProject();
-    showToast('New digital whiteboard notebook initialized!', 'success');
-  };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this whiteboard project?')) {
-      deleteProject(id);
-      showToast('Project deleted', 'info');
-    }
-  };
+  const tabs: { id: DashboardTab; label: string; icon: any; count?: number; badgeColor?: string }[] = [
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'whiteboards', label: 'Recent Whiteboards', icon: BookOpen, count: totalNotebooks, badgeColor: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
+    { id: 'notes', label: 'Saved Notes', icon: FileText, count: totalNotes, badgeColor: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' },
+    { id: 'ppts', label: 'Generated PPTs', icon: Presentation, count: totalPPTs, badgeColor: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
+    { id: 'quizzes', label: 'Generated Quizzes', icon: HelpCircle, count: totalQuizzes, badgeColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+    { id: 'mindmaps', label: 'Mind Maps', icon: Network, count: totalMindMaps, badgeColor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400' },
+    { id: 'usage', label: 'Usage / Tokens', icon: Zap },
+    { id: 'account', label: 'Account & Plan', icon: User },
+  ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8 animate-in fade-in duration-300">
       
-      {/* Welcome Section Banner */}
+      {/* Top Welcome Banner */}
       <div className="relative rounded-3xl bg-gradient-to-r from-indigo-900 via-indigo-950 to-purple-950 text-white p-6 sm:p-10 overflow-hidden shadow-2xl border border-indigo-700/40">
+        
+        {/* Ambient Glow */}
+        <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <span className="text-xs uppercase font-bold tracking-wider text-indigo-300">
-              Student Dashboard
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase font-bold tracking-wider text-indigo-300">
+                Command Center Dashboard
+              </span>
+              {isPremium ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-extrabold flex items-center gap-1">
+                  <Crown className="w-3 h-3 text-amber-400" />
+                  <span>PRO SCHOLAR ACTIVE</span>
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-200 text-[10px] font-semibold">
+                  Free Starter Plan
+                </span>
+              )}
+            </div>
+
             <h1 className="text-2xl sm:text-4xl font-extrabold font-brand tracking-tight">
               Welcome back, {user?.name || 'Scholar'} 👋
             </h1>
-            <p className="text-xs sm:text-sm text-indigo-200 max-w-lg leading-relaxed">
-              Transform your raw notes into structured knowledge. Create new whiteboards or review your generated presentations and quizzes.
+            <p className="text-xs sm:text-sm text-indigo-200 max-w-xl leading-relaxed">
+              Manage your whiteboards, review generated PowerPoint decks, practice quizzes, explore concept mind maps, and monitor your AI token usage.
             </p>
           </div>
 
-          <button
-            onClick={handleCreateNew}
-            className="px-6 py-3.5 rounded-2xl bg-white text-indigo-950 hover:bg-slate-100 font-bold text-sm shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 group"
-          >
-            <Plus className="w-4 h-4 text-indigo-600 group-hover:rotate-90 transition-transform" />
-            <span>{t.whiteboard.newBoard}</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCreateModalOpen(true)}
+              className="px-6 py-3.5 rounded-2xl bg-white text-indigo-950 hover:bg-slate-100 font-bold text-sm shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 group cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-indigo-600 group-hover:rotate-90 transition-transform" />
+              <span>Create New Whiteboard</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Stats / Quick Action Metric Tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <div 
-          onClick={() => setFilterType('all')}
-          className={`p-5 rounded-2xl border backdrop-blur-xl cursor-pointer transition-all ${
-            filterType === 'all'
-              ? 'bg-indigo-500/10 border-indigo-500/50 shadow-md'
-              : 'bg-white/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Notebooks</span>
-            <BookOpen className="w-4 h-4 text-indigo-500" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-extrabold font-brand text-slate-900 dark:text-white mt-2">
-            {projects.length}
-          </p>
-        </div>
-
-        <div 
-          onClick={() => setFilterType('ppt')}
-          className={`p-5 rounded-2xl border backdrop-blur-xl cursor-pointer transition-all ${
-            filterType === 'ppt'
-              ? 'bg-indigo-500/10 border-indigo-500/50 shadow-md'
-              : 'bg-white/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Generated PPTs</span>
-            <Presentation className="w-4 h-4 text-indigo-500" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-extrabold font-brand text-indigo-600 dark:text-indigo-400 mt-2">
-            {totalPPTs}
-          </p>
-        </div>
-
-        <div 
-          onClick={() => setFilterType('mcq')}
-          className={`p-5 rounded-2xl border backdrop-blur-xl cursor-pointer transition-all ${
-            filterType === 'mcq'
-              ? 'bg-emerald-500/10 border-emerald-500/50 shadow-md'
-              : 'bg-white/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">MCQ Quizzes</span>
-            <HelpCircle className="w-4 h-4 text-emerald-500" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-extrabold font-brand text-emerald-600 dark:text-emerald-400 mt-2">
-            {totalMCQs}
-          </p>
-        </div>
-
-        <div 
-          onClick={() => setFilterType('mindmap')}
-          className={`p-5 rounded-2xl border backdrop-blur-xl cursor-pointer transition-all ${
-            filterType === 'mindmap'
-              ? 'bg-purple-500/10 border-purple-500/50 shadow-md'
-              : 'bg-white/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Mind Maps</span>
-            <Network className="w-4 h-4 text-purple-500" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-extrabold font-brand text-purple-600 dark:text-purple-400 mt-2">
-            {totalMindMaps}
-          </p>
-        </div>
+      {/* Navigation Tabs Bar */}
+      <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800 backdrop-blur-xl overflow-x-auto shadow-xs">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                isActive
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span>{tab.label}</span>
+              {tab.count !== undefined && (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  isActive ? 'bg-white/20 text-white' : tab.badgeColor || 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Projects Search and Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search notebook notes..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-indigo-500 outline-hidden backdrop-blur-md"
-          />
-        </div>
+      {/* Tab Content Router */}
+      <div className="space-y-8">
+        
+        {/* OVERVIEW TAB */}
+        {activeTab === 'overview' && (
+          <div className="space-y-8">
+            
+            {/* Quick Metrics Tiles */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              
+              <div 
+                onClick={() => setActiveTab('whiteboards')}
+                className="p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer space-y-2 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Notebooks</span>
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                </div>
+                <p className="text-2xl sm:text-3xl font-extrabold font-brand text-slate-900 dark:text-white">
+                  {totalNotebooks}
+                </p>
+                <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1">
+                  <span>View notebooks</span>
+                  <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          <button
-            onClick={() => setFilterType('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              filterType === 'all'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            All Notes
-          </button>
-          <button
-            onClick={() => setFilterType('ppt')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              filterType === 'ppt'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            With PPT
-          </button>
-          <button
-            onClick={() => setFilterType('mcq')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              filterType === 'mcq'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            With MCQs
-          </button>
-          <button
-            onClick={() => setFilterType('mindmap')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              filterType === 'mindmap'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            With Mind Maps
-          </button>
-        </div>
-      </div>
+              <div 
+                onClick={() => setActiveTab('ppts')}
+                className="p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer space-y-2 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Generated PPTs</span>
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Presentation className="w-4 h-4" />
+                  </div>
+                </div>
+                <p className="text-2xl sm:text-3xl font-extrabold font-brand text-indigo-600 dark:text-indigo-400">
+                  {totalPPTs}
+                </p>
+                <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1">
+                  <span>Export PPTX decks</span>
+                  <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
 
-      {/* Projects Grid */}
-      {filteredProjects.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProjects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onOpen={loadProject}
-              onDelete={handleDelete}
+              <div 
+                onClick={() => setActiveTab('quizzes')}
+                className="p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer space-y-2 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">MCQ Quizzes</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <HelpCircle className="w-4 h-4" />
+                  </div>
+                </div>
+                <p className="text-2xl sm:text-3xl font-extrabold font-brand text-emerald-600 dark:text-emerald-400">
+                  {totalQuizzes}
+                </p>
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  <span>Practice questions</span>
+                  <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
+
+              <div 
+                onClick={() => setActiveTab('mindmaps')}
+                className="p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer space-y-2 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Concept Mind Maps</span>
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Network className="w-4 h-4" />
+                  </div>
+                </div>
+                <p className="text-2xl sm:text-3xl font-extrabold font-brand text-purple-600 dark:text-purple-400">
+                  {totalMindMaps}
+                </p>
+                <span className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
+                  <span>Explore graphs</span>
+                  <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
+
+            </div>
+
+            {/* Side-by-side Usage Card & Account Card Widgets */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <UsageTokenBalanceCard onOpenUpgradeModal={() => setUpgradeModalOpen(true)} />
+              <AccountPlanCard onOpenUpgradeModal={() => setUpgradeModalOpen(true)} />
+            </div>
+
+            {/* Recent Whiteboards Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white font-brand">
+                    Recent Whiteboards
+                  </h3>
+                  <p className="text-xs text-slate-500">Continue where you left off</p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('whiteboards')}
+                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>View All ({totalNotebooks})</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <RecentWhiteboardsSection 
+                onOpenCreateModal={() => setCreateModalOpen(true)}
+                onOpenNoteDetail={(proj) => setSelectedNoteProject(proj)}
+              />
+            </div>
+
+          </div>
+        )}
+
+        {/* RECENT WHITEBOARDS TAB */}
+        {activeTab === 'whiteboards' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white font-brand">
+                  All Whiteboard Notebooks
+                </h3>
+                <p className="text-xs text-slate-500">Open, rename, duplicate, or delete your digital notebooks</p>
+              </div>
+            </div>
+
+            <RecentWhiteboardsSection 
+              onOpenCreateModal={() => setCreateModalOpen(true)}
+              onOpenNoteDetail={(proj) => setSelectedNoteProject(proj)}
             />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-16 px-4 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 space-y-4">
-          <FolderPlus className="w-12 h-12 text-slate-400 mx-auto" />
-          <div className="space-y-1">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white font-brand">
-              No Notebooks Found
-            </h3>
-            <p className="text-xs text-slate-500">
-              Start writing on a fresh digital whiteboard canvas.
-            </p>
           </div>
-          <button
-            onClick={handleCreateNew}
-            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md inline-flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Create Whiteboard
-          </button>
-        </div>
-      )}
+        )}
+
+        {/* SAVED NOTES TAB */}
+        {activeTab === 'notes' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white font-brand">
+                  Saved Notes & Synthesized Summaries
+                </h3>
+                <p className="text-xs text-slate-500">Read, copy, and export your lecture notes and concept breakdowns</p>
+              </div>
+            </div>
+
+            <SavedNotesSection
+              onOpenNoteDetail={(proj) => setSelectedNoteProject(proj)}
+              onOpenCreateModal={() => setCreateModalOpen(true)}
+            />
+          </div>
+        )}
+
+        {/* GENERATED PPTS TAB */}
+        {activeTab === 'ppts' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white font-brand">
+                  Generated PowerPoint Presentations
+                </h3>
+                <p className="text-xs text-slate-500">Preview slides and download real .pptx PowerPoint presentations</p>
+              </div>
+            </div>
+
+            <GeneratedPPTsSection
+              onPreviewPPT={(pres) => setSelectedPPT(pres)}
+              onOpenCreateModal={() => setCreateModalOpen(true)}
+            />
+          </div>
+        )}
+
+        {/* GENERATED QUIZZES TAB */}
+        {activeTab === 'quizzes' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white font-brand">
+                  Generated MCQ Practice Quizzes
+                </h3>
+                <p className="text-xs text-slate-500">Test your understanding with instant feedback and rationale</p>
+              </div>
+            </div>
+
+            <GeneratedQuizzesSection
+              onTakeQuiz={(qz) => setSelectedQuiz(qz)}
+              onOpenCreateModal={() => setCreateModalOpen(true)}
+            />
+          </div>
+        )}
+
+        {/* MIND MAPS TAB */}
+        {activeTab === 'mindmaps' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white font-brand">
+                  Generated Concept Mind Maps
+                </h3>
+                <p className="text-xs text-slate-500">Explore interactive nodes and visual hierarchical connections</p>
+              </div>
+            </div>
+
+            <MindMapsSection
+              onOpenCreateModal={() => setCreateModalOpen(true)}
+            />
+          </div>
+        )}
+
+        {/* USAGE / TOKEN BALANCE TAB */}
+        {activeTab === 'usage' && (
+          <div className="space-y-6 max-w-4xl mx-auto">
+            <UsageTokenBalanceCard onOpenUpgradeModal={() => setUpgradeModalOpen(true)} />
+          </div>
+        )}
+
+        {/* ACCOUNT & PLAN TAB */}
+        {activeTab === 'account' && (
+          <div className="space-y-6 max-w-4xl mx-auto">
+            <AccountPlanCard onOpenUpgradeModal={() => setUpgradeModalOpen(true)} />
+          </div>
+        )}
+
+      </div>
+
+      {/* Global Modals */}
+      <CreateWhiteboardModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+      />
+
+      <NoteDetailModal
+        isOpen={!!selectedNoteProject}
+        onClose={() => setSelectedNoteProject(null)}
+        project={selectedNoteProject}
+      />
+
+      <PPTPreviewModal
+        isOpen={!!selectedPPT}
+        onClose={() => setSelectedPPT(null)}
+        presentation={selectedPPT}
+      />
+
+      <QuizPreviewModal
+        isOpen={!!selectedQuiz}
+        onClose={() => setSelectedQuiz(null)}
+        quiz={selectedQuiz}
+      />
+
+      <TokensExhaustedModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+      />
 
     </div>
   );
