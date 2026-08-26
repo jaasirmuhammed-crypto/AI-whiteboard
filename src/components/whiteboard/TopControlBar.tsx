@@ -22,7 +22,9 @@ import {
   Sliders,
   Crown,
   LayoutTemplate,
-  HelpCircle
+  HelpCircle,
+  Wand2,
+  Mic
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { useI18n } from '../../i18n';
@@ -49,6 +51,9 @@ interface TopControlBarProps {
   onOpenTutorial?: () => void;
   onOpenQuota?: () => void;
   onOpenCustomization?: () => void;
+  onOpenAIWritingAssistant?: () => void;
+  onToggleVoiceAnnotation?: () => void;
+  isVoiceAnnotationActive?: boolean;
   isMultiplayerActive?: boolean;
   quotaRemaining?: number;
 }
@@ -72,6 +77,9 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
   onOpenTutorial,
   onOpenQuota,
   onOpenCustomization,
+  onOpenAIWritingAssistant,
+  onToggleVoiceAnnotation,
+  isVoiceAnnotationActive = false,
   isMultiplayerActive = false,
   quotaRemaining = 5,
 }) => {
@@ -221,12 +229,38 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
           </button>
         )}
 
+        {/* AI Writing & Grammar Assistant */}
+        {onOpenAIWritingAssistant && (
+          <button
+            onClick={onOpenAIWritingAssistant}
+            className="p-2 rounded-xl border border-indigo-200/80 dark:border-indigo-800/80 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-400 transition-colors shadow-xs"
+            title="AI Writing & Grammar Assistant (Fix typos, polish explanations, simplify)"
+          >
+            <Wand2 className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Voice Annotation & Lecture Audio Recorder */}
+        {onToggleVoiceAnnotation && (
+          <button
+            onClick={onToggleVoiceAnnotation}
+            className={`p-2 rounded-xl border transition-colors flex items-center gap-1 ${
+              isVoiceAnnotationActive
+                ? 'bg-rose-500/15 border-rose-500 text-rose-600 dark:text-rose-400 animate-pulse'
+                : 'border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+            }`}
+            title="Voice Annotation (Record audio explanation while drawing)"
+          >
+            <Mic className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Notebook Templates */}
         {onOpenTemplates && (
           <button
             onClick={onOpenTemplates}
             className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
-            title="Notebook Templates (Cornell, Mind Map, STEM, Q&A)"
+            title="Notebook Templates (Cornell, Mind Map, STEM, Q&A, Flowchart)"
           >
             <LayoutTemplate className="w-4 h-4 text-indigo-500" />
           </button>
@@ -247,7 +281,7 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
         <button
           onClick={onOpenBackgrounds}
           className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
-          title="Change Grid Pattern"
+          title="Change Grid / Theme Pattern"
         >
           <span className="text-xs font-semibold hidden md:inline">{t.whiteboard.background}</span>
           <span className="md:hidden">▦</span>

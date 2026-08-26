@@ -411,13 +411,23 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
 
     // 1. Background Pattern with subtle glassmorphism to show live wave animation
     const isDark = theme === 'dark';
-    bCtx.fillStyle = isDark ? 'rgba(9, 13, 22, 0.86)' : 'rgba(255, 255, 255, 0.88)';
+    const isBlueprint = props.backgroundPattern === 'blueprint';
+    
+    if (isBlueprint) {
+      bCtx.fillStyle = '#0a192f';
+    } else {
+      bCtx.fillStyle = isDark ? 'rgba(9, 13, 22, 0.86)' : 'rgba(255, 255, 255, 0.88)';
+    }
     bCtx.fillRect(0, 0, width, height);
 
     bCtx.translate(props.panOffset.x, props.panOffset.y);
     bCtx.scale(props.scale, props.scale);
 
-    const patternColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.09)';
+    const patternColor = isBlueprint 
+      ? 'rgba(56, 189, 248, 0.22)' 
+      : isDark 
+      ? 'rgba(255,255,255,0.06)' 
+      : 'rgba(99,102,241,0.09)';
     bCtx.strokeStyle = patternColor;
     bCtx.lineWidth = 1;
 
@@ -434,7 +444,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         bCtx.lineTo(endX, y);
         bCtx.stroke();
       }
-    } else if (props.backgroundPattern === 'grid' || props.backgroundPattern === 'graph') {
+    } else if (props.backgroundPattern === 'grid' || props.backgroundPattern === 'graph' || props.backgroundPattern === 'blueprint') {
       const step = props.backgroundPattern === 'graph' ? 16 : 32;
       for (let x = Math.floor(startX / step) * step; x <= endX; x += step) {
         bCtx.beginPath();
@@ -458,6 +468,31 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
           bCtx.fill();
         }
       }
+    } else if (props.backgroundPattern === 'isometric') {
+      const step = 36;
+      const angle = Math.PI / 6; // 30 degrees
+      const tan = Math.tan(angle);
+      // Horizontal lines
+      for (let y = Math.floor(startY / step) * step; y <= endY; y += step) {
+        bCtx.beginPath();
+        bCtx.moveTo(startX, y);
+        bCtx.lineTo(endX, y);
+        bCtx.stroke();
+      }
+      // Diagonal lines /
+      for (let x = Math.floor(startX / step) * step - (endY - startY) * tan; x <= endX + (endY - startY) * tan; x += step * 2) {
+        bCtx.beginPath();
+        bCtx.moveTo(x, startY);
+        bCtx.lineTo(x + (endY - startY) * tan, endY);
+        bCtx.stroke();
+      }
+      // Diagonal lines \
+      for (let x = Math.floor(startX / step) * step - (endY - startY) * tan; x <= endX + (endY - startY) * tan; x += step * 2) {
+        bCtx.beginPath();
+        bCtx.moveTo(x, startY);
+        bCtx.lineTo(x - (endY - startY) * tan, endY);
+        bCtx.stroke();
+      }
     }
 
     // 2. Render Committed Elements
@@ -472,7 +507,14 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
 
       if (el.type === 'stroke') {
         const stroke = el as StrokeElement;
-        if (stroke.points.length > 1) {
+        if (stroke.points.length === 1) {
+          // Render single tap / dot
+          bCtx.globalAlpha = stroke.opacity || 1;
+          bCtx.fillStyle = stroke.color;
+          bCtx.beginPath();
+          bCtx.arc(stroke.points[0].x, stroke.points[0].y, Math.max(1, (stroke.width * (stroke.points[0].pressure || 1)) / 2), 0, Math.PI * 2);
+          bCtx.fill();
+        } else if (stroke.points.length > 1) {
           bCtx.globalAlpha = stroke.opacity || 1;
           bCtx.strokeStyle = stroke.color;
           bCtx.lineCap = 'round';
@@ -496,6 +538,9 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
               bCtx.lineWidth = stroke.width * (stroke.points[i].pressure || 1);
               bCtx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, midX, midY);
             }
+            const last = stroke.points[stroke.points.length - 1];
+            const prev = stroke.points[stroke.points.length - 2];
+            bCtx.quadraticCurveTo(prev.x, prev.y, last.x, last.y);
             bCtx.stroke();
           }
         }
@@ -722,21 +767,32 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       ctx.scale(props.scale, props.scale);
 
       // Draw active stroke
-      if (activeStroke && activeStroke.points.length > 1) {
-        ctx.globalAlpha = activeStroke.opacity || 1;
-        ctx.strokeStyle = activeStroke.color;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+      if (activeStroke) {
+        if (activeStroke.points.length === 1) {
+          ctx.globalAlpha = activeStroke.opacity || 1;
+          ctx.fillStyle = activeStroke.color;
+          ctx.beginPath();
+          ctx.arc(activeStroke.points[0].x, activeStroke.points[0].y, Math.max(1, (activeStroke.width * (activeStroke.points[0].pressure || 1)) / 2), 0, Math.PI * 2);
+          ctx.fill();
+        } else if (activeStroke.points.length > 1) {
+          ctx.globalAlpha = activeStroke.opacity || 1;
+          ctx.strokeStyle = activeStroke.color;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
 
-        ctx.beginPath();
-        ctx.moveTo(activeStroke.points[0].x, activeStroke.points[0].y);
-        for (let i = 1; i < activeStroke.points.length - 1; i++) {
-          const midX = (activeStroke.points[i].x + activeStroke.points[i + 1].x) / 2;
-          const midY = (activeStroke.points[i].y + activeStroke.points[i + 1].y) / 2;
-          ctx.lineWidth = activeStroke.width * (activeStroke.points[i].pressure || 1);
-          ctx.quadraticCurveTo(activeStroke.points[i].x, activeStroke.points[i].y, midX, midY);
+          ctx.beginPath();
+          ctx.moveTo(activeStroke.points[0].x, activeStroke.points[0].y);
+          for (let i = 1; i < activeStroke.points.length - 1; i++) {
+            const midX = (activeStroke.points[i].x + activeStroke.points[i + 1].x) / 2;
+            const midY = (activeStroke.points[i].y + activeStroke.points[i + 1].y) / 2;
+            ctx.lineWidth = activeStroke.width * (activeStroke.points[i].pressure || 1);
+            ctx.quadraticCurveTo(activeStroke.points[i].x, activeStroke.points[i].y, midX, midY);
+          }
+          const last = activeStroke.points[activeStroke.points.length - 1];
+          const prev = activeStroke.points[activeStroke.points.length - 2];
+          ctx.quadraticCurveTo(prev.x, prev.y, last.x, last.y);
+          ctx.stroke();
         }
-        ctx.stroke();
       }
 
       // Draw active shape preview

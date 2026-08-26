@@ -49,6 +49,8 @@ import { AISettingsModal } from './components/ai/AISettingsModal';
 import { TopicConfirmModal } from './components/ai/TopicConfirmModal';
 import { OCRReviewModal } from './components/ai/OCRReviewModal';
 import { OutputCustomizationModal } from './components/ai/OutputCustomizationModal';
+import { AIWritingAssistantModal } from './components/ai/AIWritingAssistantModal';
+import { VoiceAnnotationBar } from './components/whiteboard/VoiceAnnotationBar';
 
 // Common Core Modals & Payments
 import { ExportHubModal } from './components/common/ExportHubModal';
@@ -212,6 +214,8 @@ const MainAppContent: React.FC = () => {
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [layersModalOpen, setLayersModalOpen] = useState(false);
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
+  const [aiWritingAssistantOpen, setAiWritingAssistantOpen] = useState(false);
+  const [voiceAnnotationBarOpen, setVoiceAnnotationBarOpen] = useState(false);
   const [quotaModalOpen, setQuotaModalOpen] = useState(false);
   const [tokensExhaustedModalOpen, setTokensExhaustedModalOpen] = useState(false);
   const [onboardingTourOpen, setOnboardingTourOpen] = useState(false);
@@ -631,6 +635,9 @@ const MainAppContent: React.FC = () => {
               onOpenVersionHistory={() => setVersionHistoryOpen(true)}
               onOpenLayers={() => setLayersModalOpen(true)}
               onOpenTemplates={() => setTemplatesModalOpen(true)}
+              onOpenAIWritingAssistant={() => setAiWritingAssistantOpen(true)}
+              onToggleVoiceAnnotation={() => setVoiceAnnotationBarOpen(!voiceAnnotationBarOpen)}
+              isVoiceAnnotationActive={voiceAnnotationBarOpen}
               onOpenTutorial={() => setOnboardingTourOpen(true)}
               onOpenQuota={() => (isPremium ? setQuotaModalOpen(true) : setTokensExhaustedModalOpen(true))}
               onOpenCustomization={() => setOutputCustomizationOpen(true)}
@@ -922,6 +929,18 @@ const MainAppContent: React.FC = () => {
             updateCurrentProjectElements([...currentProject.elements, ...newElements]);
           }
         }}
+      />
+
+      {/* AI Writing & Grammar Assistant Modal */}
+      <AIWritingAssistantModal
+        isOpen={aiWritingAssistantOpen}
+        onClose={() => setAiWritingAssistantOpen(false)}
+      />
+
+      {/* Voice Annotation & Lecture Audio Recorder Bar */}
+      <VoiceAnnotationBar
+        isOpen={voiceAnnotationBarOpen}
+        onClose={() => setVoiceAnnotationBarOpen(false)}
       />
 
       {/* Interactive 30-Second Onboarding Tour */}

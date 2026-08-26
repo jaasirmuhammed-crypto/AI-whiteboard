@@ -269,19 +269,170 @@ export const TemplatesModal: React.FC<TemplatesModalProps> = ({
       },
     },
     {
-      id: 'medical_case',
-      name: 'Clinical Vignette & Patient Case',
-      category: 'Medicine & Healthcare',
-      description: 'Structured patient history, physical exam, differential diagnosis, and diagnostic workup table.',
-      icon: <Stethoscope className="w-5 h-5" />,
+      id: 'flowchart',
+      name: 'Logic Flowchart & Decision Tree',
+      category: 'Computer Science & Logic',
+      description: 'Standard flowchart schema with Start terminal, Process boxes, Decision diamond, and flow arrows.',
+      icon: <Network className="w-5 h-5" />,
+      color: 'from-blue-500 to-indigo-600',
+      generateElements: () => {
+        const elements: WhiteboardElement[] = [];
+        const now = Date.now();
+
+        const title = createTextEl(`fc_title_${now}`, '🔄 Algorithm / Logic Flowchart', 40, 40, 18, '#2563eb', true);
+
+        // Start Oval/Pill
+        const startBox: ShapeElement = {
+          id: `fc_start_${now}`,
+          type: 'shape',
+          shapeType: 'rectangle',
+          x: 400,
+          y: 80,
+          width: 160,
+          height: 50,
+          color: '#10b981',
+          strokeWidth: 2,
+          opacity: 0.9,
+          fillColor: 'rgba(16, 185, 129, 0.15)',
+          layerId: 'layer_01',
+        };
+        const startText = createTextEl(`fc_st_${now}`, 'START', 455, 110, 14, '#059669', true);
+
+        // Arrow 1
+        const a1: ShapeElement = {
+          id: `fc_a1_${now}`,
+          type: 'shape',
+          shapeType: 'arrow',
+          x: 480,
+          y: 130,
+          width: 0,
+          height: 60,
+          color: '#64748b',
+          strokeWidth: 2,
+          opacity: 0.8,
+          layerId: 'layer_01',
+        };
+
+        // Process Box
+        const procBox: ShapeElement = {
+          id: `fc_proc_${now}`,
+          type: 'shape',
+          shapeType: 'rectangle',
+          x: 370,
+          y: 190,
+          width: 220,
+          height: 60,
+          color: '#3b82f6',
+          strokeWidth: 2,
+          opacity: 0.9,
+          fillColor: 'rgba(59, 130, 246, 0.12)',
+          layerId: 'layer_01',
+        };
+        const procText = createTextEl(`fc_pt_${now}`, 'Execute Process Step 1', 400, 225, 13, '#2563eb', true);
+
+        // Arrow 2
+        const a2: ShapeElement = {
+          id: `fc_a2_${now}`,
+          type: 'shape',
+          shapeType: 'arrow',
+          x: 480,
+          y: 250,
+          width: 0,
+          height: 60,
+          color: '#64748b',
+          strokeWidth: 2,
+          opacity: 0.8,
+          layerId: 'layer_01',
+        };
+
+        // Decision Diamond / Rectangle
+        const decBox: ShapeElement = {
+          id: `fc_dec_${now}`,
+          type: 'shape',
+          shapeType: 'rectangle',
+          x: 370,
+          y: 310,
+          width: 220,
+          height: 70,
+          color: '#f59e0b',
+          strokeWidth: 2,
+          opacity: 0.9,
+          fillColor: 'rgba(245, 158, 11, 0.15)',
+          layerId: 'layer_01',
+        };
+        const decText = createTextEl(`fc_dt_${now}`, 'Condition Valid? [Y / N]', 400, 350, 13, '#d97706', true);
+
+        elements.push(title, startBox, startText, a1, procBox, procText, a2, decBox, decText);
+        return elements;
+      },
+    },
+    {
+      id: 'meeting_action',
+      name: 'Meeting & Action Item Tracker',
+      category: 'Productivity & Planning',
+      description: 'Structured 3-column layout for agenda items, key discussion takeaways, and assigned action item checklist.',
+      icon: <FileSpreadsheet className="w-5 h-5" />,
       color: 'from-emerald-500 to-teal-600',
       generateElements: () => {
         const elements: WhiteboardElement[] = [];
         const now = Date.now();
 
-        const title = createTextEl(`med_title_${now}`, '🩺 Clinical Case Note / Differential Diagnosis', 40, 40, 18, '#059669', true);
+        const title = createTextEl(`mt_title_${now}`, '📋 Meeting Notes & Action Items Matrix', 40, 40, 18, '#0f766e', true);
+        const col1H = createTextEl(`mt_c1_${now}`, '📌 1. Agenda & Objective', 40, 80, 14, '#0d9488', true);
+        const col2H = createTextEl(`mt_c2_${now}`, '💬 2. Discussion Notes', 360, 80, 14, '#2563eb', true);
+        const col3H = createTextEl(`mt_c3_${now}`, '✅ 3. Action Items & Owner', 680, 80, 14, '#059669', true);
 
-        elements.push(title);
+        // Divider 1
+        const div1: ShapeElement = {
+          id: `mt_d1_${now}`,
+          type: 'shape',
+          shapeType: 'line',
+          x: 340,
+          y: 75,
+          width: 0,
+          height: 600,
+          color: '#14b8a6',
+          strokeWidth: 1.5,
+          opacity: 0.4,
+          layerId: 'layer_01',
+        };
+
+        // Divider 2
+        const div2: ShapeElement = {
+          id: `mt_d2_${now}`,
+          type: 'shape',
+          shapeType: 'line',
+          x: 660,
+          y: 75,
+          width: 0,
+          height: 600,
+          color: '#14b8a6',
+          strokeWidth: 1.5,
+          opacity: 0.4,
+          layerId: 'layer_01',
+        };
+
+        elements.push(title, col1H, col2H, col3H, div1, div2);
+        return elements;
+      },
+    },
+    {
+      id: 'medical_case',
+      name: 'Clinical Vignette & Patient Case',
+      category: 'Medicine & Healthcare',
+      description: 'Structured patient history, physical exam, differential diagnosis, and diagnostic workup table.',
+      icon: <Stethoscope className="w-5 h-5" />,
+      color: 'from-rose-500 to-red-600',
+      generateElements: () => {
+        const elements: WhiteboardElement[] = [];
+        const now = Date.now();
+
+        const title = createTextEl(`med_title_${now}`, '🩺 Clinical Case Note / Differential Diagnosis', 40, 40, 18, '#e11d48', true);
+        const h1 = createTextEl(`med_h1_${now}`, '👤 Chief Complaint & HPI', 40, 80, 14, '#be123c', true);
+        const h2 = createTextEl(`med_h2_${now}`, '🔍 Physical Exam & Labs', 360, 80, 14, '#be123c', true);
+        const h3 = createTextEl(`med_h3_${now}`, '💊 Differential & Rx Plan', 680, 80, 14, '#be123c', true);
+
+        elements.push(title, h1, h2, h3);
         return elements;
       },
     },
