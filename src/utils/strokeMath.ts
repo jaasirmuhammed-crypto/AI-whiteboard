@@ -43,8 +43,8 @@ export function smoothStrokePoints(points: StrokePoint[], smoothingLevel: 'none'
 }
 
 /**
- * Intelligent Smart Shape Recognition
- * Detects if a hand-drawn stroke is intended as a circle, rectangle, triangle, arrow, or straight line.
+ * Advanced Smart Shape & Gesture Recognition Engine
+ * Detects rough circles, ellipses, arrows, rectangles, triangles, and straight lines.
  */
 export function detectSmartShape(points: StrokePoint[]): {
   detected: boolean;
@@ -55,7 +55,7 @@ export function detectSmartShape(points: StrokePoint[]): {
   height: number;
   confidence: number;
 } | null {
-  if (points.length < 8) return null;
+  if (points.length < 6) return null;
 
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   let totalLength = 0;
@@ -79,30 +79,94 @@ export function detectSmartShape(points: StrokePoint[]): {
   const last = points[points.length - 1];
   const startEndDist = Math.hypot(last.x - first.x, last.y - first.y);
 
-  // 1. Straight Line Check
+  // 1. ARROW GESTURE DETECTION
+  // Check if stroke ends with an arrowhead (hook or V-shape at end)
+  if (points.length >= 10 && totalLength > 40) {
+    const mainBodyLastIdx = Math.floor(points.length * 0.75);
+    const mainVector = {
+      x: points[mainBodyLastIdx].x - first.x,
+      y: points[mainBodyLastIdx].y - first.y,
+    };
+    const mainLen = Math.hypot(mainVector.x, mainVector.y);
+
+    if (mainLen > 30) {
+      // Check head turning points
+      const endVector = {
+        x: last.x - points[mainBodyLastIdx].x,
+        y: last.y - points[mainBodyLastIdx].y,
+      };
+      const dot = (mainVector.x * endVector.x + mainVector.y * endVector.y) / (mainLen * (Math.hypot(endVector.x, endVector.y) || 1));
+      
+      // If turnaround or hook at the end
+      if (dot < 0.2 || (startEndDist > totalLength * 0.7 && totalLength > mainLen * 1.15)) {
+        return {
+          detected: true,
+          shapeType: 'arrow',
+          x: first.x,
+          y: first.y,
+          width: last.x - first.x,
+          height: last.y - first.y,
+          confidence: 0.88,
+        };
+      }
+    }
+  }
+
+  // 2. STRAIGHT LINE DETECTION
   const directDistance = Math.hypot(last.x - first.x, last.y - first.y);
-  if (totalLength > 40 && directDistance / totalLength > 0.92) {
+  if (totalLength > 35 && directDistance / totalLength > 0.90) {
+    // Snap to pure horizontal or vertical if angle is within 7 degrees
+    let endX = last.x;
+    let endY = last.y;
+    const angleRad = Math.atan2(Math.abs(last.y - first.y), Math.abs(last.x - first.x));
+    const angleDeg = (angleRad * 180) / Math.PI;
+
+    if (angleDeg < 7) {
+      endY = first.y; // horizontal snap
+    } else if (angleDeg > 83) {
+      endX = first.x; // vertical snap
+    }
+
     return {
       detected: true,
       shapeType: 'line',
       x: first.x,
       y: first.y,
-      width: last.x - first.x,
-      height: last.y - first.y,
-      confidence: 0.95,
+      width: endX - first.x,
+      height: endY - first.y,
+      confidence: 0.94,
     };
   }
 
-  // 2. Closed Loop Check (Circle or Rectangle or Triangle)
-  const isClosed = startEndDist < Math.max(width, height) * 0.35 || startEndDist < 35;
+  // 3. CLOSED LOOP GESTURES (Circle, Ellipse, Rectangle, Triangle)
+  const isClosed = startEndDist < Math.max(width, height) * 0.38 || startEndDist < 40;
 
-  if (isClosed && totalLength > 60) {
+  if (isClosed && totalLength > 50) {
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    // Calculate radial distance variance from center
+    let sumDist = 0;
+    const distances: number[] = [];
+    for (let i = 0; i < points.length; i++) {
+      const d = Math.hypot(points[i].x - cx, points[i].y - cy);
+      distances.push(d);
+      sumDist += d;
+    }
+    const avgDist = sumDist / points.length;
+    let varianceSum = 0;
+    for (const d of distances) {
+      varianceSum += Math.pow(d - avgDist, 2);
+    }
+    const stdDev = Math.sqrt(varianceSum / distances.length);
+    const radialVarianceRatio = stdDev / (avgDist || 1);
+
     const perimeter = 2 * (width + height);
     const circlePerimeter = Math.PI * ((width + height) / 2);
     const aspectRatio = Math.min(width, height) / Math.max(width, height);
 
-    // If roughly 1:1 aspect ratio and perimeter matches circle
-    if (aspectRatio > 0.65 && Math.abs(totalLength - circlePerimeter) / circlePerimeter < 0.35) {
+    // Rough Circle / Ellipse Detection
+    if (radialVarianceRatio < 0.24 && Math.abs(totalLength - circlePerimeter) / circlePerimeter < 0.38) {
       return {
         detected: true,
         shapeType: 'circle',
@@ -110,12 +174,12 @@ export function detectSmartShape(points: StrokePoint[]): {
         y: minY,
         width,
         height,
-        confidence: 0.91,
+        confidence: 0.93,
       };
     }
 
-    // Check if Rectangle
-    if (Math.abs(totalLength - perimeter) / perimeter < 0.4) {
+    // Rectangle Detection
+    if (Math.abs(totalLength - perimeter) / perimeter < 0.36) {
       return {
         detected: true,
         shapeType: 'rectangle',
@@ -123,11 +187,11 @@ export function detectSmartShape(points: StrokePoint[]): {
         y: minY,
         width,
         height,
-        confidence: 0.88,
+        confidence: 0.89,
       };
     }
 
-    // Otherwise check Triangle
+    // Triangle Detection
     return {
       detected: true,
       shapeType: 'triangle',
@@ -135,7 +199,7 @@ export function detectSmartShape(points: StrokePoint[]): {
       y: minY,
       width,
       height,
-      confidence: 0.82,
+      confidence: 0.84,
     };
   }
 

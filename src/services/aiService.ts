@@ -1,6 +1,7 @@
 import { StudyMaterialsPackage, PresentationData, MCQQuizData, MindMapData, PPTSlide, ExamTargetContext, SlideFacetType } from '../types/studyMaterial';
 import { WhiteboardElement } from '../types/whiteboard';
 import { Exam } from '../types/competitive';
+import { elementsToSVG } from '../utils/svgExportUtil';
 
 export interface AIServiceConfig {
   apiKey?: string;
@@ -249,12 +250,13 @@ export class AIService {
 
     const apiKey = this.getApiKey();
 
-    // If Gemini API Key is provided, call Google Gemini Multimodal Vision API
+    // If Gemini API Key is provided, call Google Gemini Multimodal Vision API with image and vectorized SVG
     if (apiKey && canvasDataUrl) {
       try {
         onProgress?.(3, `Connecting to Google Gemini Multimodal Model${examLabel} for "${inferredTopic}"...`);
         const cleanBase64 = canvasDataUrl.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
-        const geminiResult = await this.callGeminiVisionAPI(apiKey, inferredTopic, typedNotes, cleanBase64, targetExam, onProgress);
+        const svgVector = elementsToSVG(elements);
+        const geminiResult = await this.callGeminiVisionAPI(apiKey, inferredTopic, typedNotes, cleanBase64, targetExam, onProgress, svgVector);
         if (geminiResult) return geminiResult;
       } catch (err: any) {
         console.error('Gemini API Error:', err);
@@ -291,7 +293,8 @@ export class AIService {
     notes: string,
     base64Image: string,
     targetExam?: Exam | null,
-    onProgress?: (stage: number, stageName: string) => void
+    onProgress?: (stage: number, stageName: string) => void,
+    svgVector?: string
   ): Promise<StudyMaterialsPackage | null> {
     onProgress?.(4, 'Synthesizing exam-tailored, non-repetitive textbook slides & MCQs...');
     const isBroad = this.topicIsBroadAndComplex(topic, notes);
@@ -317,8 +320,13 @@ CRITICAL EXAM SPECIALIZATION RULES:
 2. ADAPT THE QUIZ: Generate 5 MCQs strictly matching this exam's question pattern (e.g. Statement I & II for UPSC, calculation for JEE, clinical recall for NEET, data sufficiency for GMAT).`
       : `\nGENERAL ACADEMIC MODE: Generate high-level university lecture slides covering theoretical definitions, visual mechanism, deep-dive case study, and revision formulas.`;
 
+    const svgContext = svgVector && svgVector.length < 50000
+      ? `\nVECTORIZED WHITEBOARD SVG GEOMETRY (PRECISION PATHS & LABELS):\n\`\`\`xml\n${svgVector}\n\`\`\`\n`
+      : '';
+
     const prompt = `You are an elite professor, chief examiner, and textbook author.
 Requested Subject/Topic: "${topic}". Whiteboard Notes Context: "${notes}".
+${svgContext}
 ${examContextText}
 
 ================================================================================

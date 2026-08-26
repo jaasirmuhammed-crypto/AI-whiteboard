@@ -18,6 +18,7 @@ import {
 } from '../../types/whiteboard';
 import { useTheme } from '../../context/ThemeContext';
 import { detectSmartShape } from '../../utils/strokeMath';
+import { elementsToSVG } from '../../utils/svgExportUtil';
 import { Trash2, Move, Check } from 'lucide-react';
 
 export interface WhiteboardCanvasRef {
@@ -79,15 +80,27 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const isBufferDirtyRef = useRef(true);
   const animFrameIdRef = useRef<number | null>(null);
+  const propsRef = useRef(props);
+  propsRef.current = props;
+
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+
+  const erasedIdsRef = useRef<Set<string>>(new Set());
 
   // Selected & Dragging Element State
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const selectedElementIdRef = useRef(selectedElementId);
+  selectedElementIdRef.current = selectedElementId;
+
   const draggingElementRef = useRef<{
     id: string;
     startX: number;
     startY: number;
     startMouseX: number;
     startMouseY: number;
+    currentDx: number;
+    currentDy: number;
     hasMoved: boolean;
   } | null>(null);
 
@@ -170,6 +183,25 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       props.onElementsChange(nextElements);
     }
   }, [canRedo, historyIndex, history, props]);
+
+  // Imperative handle for parent components
+  useImperativeHandle(ref, () => ({
+    getSnapshotDataUrl: () => {
+      return canvasRef.current?.toDataURL('image/png') || '';
+    },
+    getSVGString: () => {
+      const w = canvasRef.current?.width || 1920;
+      const h = canvasRef.current?.height || 1080;
+      return elementsToSVG(props.elements, w, h);
+    },
+    clearCanvas: () => {
+      pushToHistory([]);
+    },
+    undo: handleUndo,
+    redo: handleRedo,
+    canUndo,
+    canRedo,
+  }), [props.elements, pushToHistory, handleUndo, handleRedo, canUndo, canRedo]);
 
   // Multi-Touch Pinch-to-Zoom & Two-Finger Pan Engine
   const touchStateRef = useRef<{
@@ -732,6 +764,10 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const currentProps = propsRef.current;
+    const currentTheme = themeRef.current;
+    const currentSelectedId = selectedElementIdRef.current;
+
     // Use low-latency desynchronized context with alpha for 120Hz live background waves
     const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
     if (!ctx) return;
@@ -759,12 +795,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     // 3. Render In-Progress Active Stroke, Dragging Overlay, or Selection Bounding Box
     const activeStroke = currentStrokeRef.current;
     const activeShape = currentShapeRef.current;
+    const draggingEl = draggingElementRef.current;
 
-    if (activeStroke || activeShape || selectedElementId || (props.collaborators && props.collaborators.length > 0)) {
+    if (activeStroke || activeShape || currentSelectedId || draggingEl || (currentProps.collaborators && currentProps.collaborators.length > 0)) {
       ctx.save();
       ctx.scale(dpr, dpr);
-      ctx.translate(props.panOffset.x, props.panOffset.y);
-      ctx.scale(props.scale, props.scale);
+      ctx.translate(currentProps.panOffset.x, currentProps.panOffset.y);
+      ctx.scale(currentProps.scale, currentProps.scale);
 
       // Draw active stroke
       if (activeStroke) {
@@ -826,35 +863,36 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         }
       }
 
-      // Draw Selection Bounding Box on Selected or Dragged Element
-      if (selectedElementId) {
-        const selectedEl = props.elements.find((el) => el.id === selectedElementId);
+      // Draw Selection Bounding Box on Selected Element
+      if (currentSelectedId) {
+        const selectedEl = currentProps.elements.find((el) => el.id === currentSelectedId);
         if (selectedEl && selectedEl.type !== 'stroke') {
           ctx.save();
           ctx.strokeStyle = '#6366f1';
-          ctx.lineWidth = 1.5 / props.scale;
-          ctx.setLineDash([4 / props.scale, 4 / props.scale]);
+          ctx.lineWidth = 1.5 / currentProps.scale;
+          ctx.setLineDash([4 / currentProps.scale, 4 / currentProps.scale]);
 
           let selX = (selectedEl as TextElement | ShapeElement | StickyElement).x;
           let selY = (selectedEl as TextElement | ShapeElement | StickyElement).y;
           let selW = 100;
           let selH = 50;
 
+          if (draggingEl && draggingEl.id === currentSelectedId) {
+            selX = draggingEl.startX + draggingEl.currentDx;
+            selY = draggingEl.startY + draggingEl.currentDy;
+          }
+
           if (selectedEl.type === 'text') {
             selW = Math.max(60, (selectedEl.text || '').length * (selectedEl.fontSize || 18) * 0.65) + 12;
             selH = (selectedEl.fontSize || 18) * 1.5;
-            selX = selectedEl.x - 6;
-            selY = selectedEl.y - selH + 4;
+            selX = selX - 6;
+            selY = selY - selH + 4;
           } else if (selectedEl.type === 'shape' || selectedEl.type === 'sticky') {
             selW = selectedEl.width || 200;
             selH = selectedEl.height || 160;
-            selX = selectedEl.x;
-            selY = selectedEl.y;
           } else if (selectedEl.type === 'image') {
             selW = (selectedEl as any).width || 200;
             selH = (selectedEl as any).height || 150;
-            selX = (selectedEl as any).x;
-            selY = (selectedEl as any).y;
           }
 
           ctx.strokeRect(selX, selY, selW, selH);
@@ -863,7 +901,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
           ctx.setLineDash([]);
           ctx.fillStyle = '#ffffff';
           ctx.strokeStyle = '#4f46e5';
-          const handleR = 4 / props.scale;
+          const handleR = 4 / currentProps.scale;
           [[selX, selY], [selX + selW, selY], [selX, selY + selH], [selX + selW, selY + selH]].forEach(([hx, hy]) => {
             ctx.beginPath();
             ctx.arc(hx, hy, handleR, 0, Math.PI * 2);
@@ -876,8 +914,8 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       }
 
       // Draw Live Multiplayer Peer Cursors
-      if (props.collaborators && props.collaborators.length > 0) {
-        props.collaborators.forEach((c) => {
+      if (currentProps.collaborators && currentProps.collaborators.length > 0) {
+        currentProps.collaborators.forEach((c) => {
           ctx.save();
           ctx.translate(c.x, c.y);
 
@@ -914,13 +952,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     if (now - lastFpsTimeRef.current >= 500) {
       const fps = Math.round((frameCountRef.current * 1000) / (now - lastFpsTimeRef.current));
       const latency = Math.max(1, Math.round(now - lastDrawStartRef.current));
-      props.onTelemetryUpdate?.(fps, latency, props.elements.length);
+      currentProps.onTelemetryUpdate?.(fps, latency, currentProps.elements.length);
       frameCountRef.current = 0;
       lastFpsTimeRef.current = now;
     }
-  }, [props, updateBufferCanvas, selectedElementId]);
+  }, [updateBufferCanvas]);
 
-  // Request Animation Frame Loop
+  // Continuous Hardware RAF Loop (Synchronized to 60Hz / 120Hz display refresh)
   useEffect(() => {
     let animId: number;
     const loop = () => {
@@ -967,6 +1005,8 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         startY: hitTyped.y,
         startMouseX: worldCoord.x,
         startMouseY: worldCoord.y,
+        currentDx: 0,
+        currentDy: 0,
         hasMoved: false,
       };
       setSelectedElementId(hitTyped.id);
@@ -1018,6 +1058,8 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
           startY: newSticky.y,
           startMouseX: worldCoord.x,
           startMouseY: worldCoord.y,
+          currentDx: 0,
+          currentDy: 0,
           hasMoved: false,
         };
         setCursorStyle('move');
@@ -1066,29 +1108,17 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       return;
     }
 
-    // Handle Active Element Dragging (Notes & Text)
+    // Handle Active Element Dragging (Notes & Text) - Smooth zero-lag RAF tracking
     if (draggingElementRef.current) {
-      const { id, startX, startY, startMouseX, startMouseY } = draggingElementRef.current;
+      const { startMouseX, startMouseY } = draggingElementRef.current;
       const dx = worldCoord.x - startMouseX;
       const dy = worldCoord.y - startMouseY;
+      draggingElementRef.current.currentDx = dx;
+      draggingElementRef.current.currentDy = dy;
 
       if (Math.hypot(dx, dy) > 3) {
         draggingElementRef.current.hasMoved = true;
       }
-
-      const updated = props.elements.map((el) => {
-        if (el.id === id && el.type !== 'stroke') {
-          return {
-            ...el,
-            x: Math.round(startX + dx),
-            y: Math.round(startY + dy),
-          };
-        }
-        return el;
-      });
-
-      props.onElementsChange(updated);
-      isBufferDirtyRef.current = true;
       return;
     }
 
@@ -1181,11 +1211,21 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
 
     // Handle Dragging Completion
     if (draggingElementRef.current) {
-      const { id, hasMoved } = draggingElementRef.current;
+      const { id, startX, startY, currentDx, currentDy, hasMoved } = draggingElementRef.current;
       draggingElementRef.current = null;
 
       if (hasMoved) {
-        pushToHistory(props.elements);
+        const updated = props.elements.map((el) => {
+          if (el.id === id && el.type !== 'stroke') {
+            return {
+              ...el,
+              x: Math.round(startX + currentDx),
+              y: Math.round(startY + currentDy),
+            };
+          }
+          return el;
+        });
+        pushToHistory(updated);
       } else {
         // If clicked without dragging, open editor for quick editing
         const clickedEl = props.elements.find((el) => el.id === id);
