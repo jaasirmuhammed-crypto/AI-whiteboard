@@ -16,6 +16,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { PaymentService, FIXED_PREMIUM_PRICE_INR } from '../../services/paymentService';
 import { useToast } from '../common/Toast';
+import { triggerSubtleConfetti } from '../../utils/confettiUtil';
 
 interface AccountPlanCardProps {
   onOpenUpgradeModal: () => void;
@@ -52,6 +53,7 @@ export const AccountPlanCard: React.FC<AccountPlanCardProps> = ({ onOpenUpgradeM
       if (res.success) {
         upgradeToPremium(verifyPayId.trim());
         showToast('Payment verified successfully! Pro Scholar plan activated. 👑', 'success');
+        triggerSubtleConfetti(0.5, 0.4);
         setShowVerifyBox(false);
       } else {
         showToast(res.message || 'Payment verification failed.', 'error');

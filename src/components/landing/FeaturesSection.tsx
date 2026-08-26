@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { 
   PenTool, 
   Presentation, 
@@ -83,9 +83,9 @@ export const FeaturesSection: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="group p-8 rounded-3xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800 backdrop-blur-xl hover:shadow-xl hover:border-indigo-500/40 dark:hover:border-indigo-500/40 transition-all duration-300 space-y-4"
+                className="group card-interactive p-8 rounded-3xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800 backdrop-blur-xl space-y-4"
               >
-                <div className={`w-12 h-12 rounded-2xl ${feature.bg} ${feature.accent} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                <div className={`w-12 h-12 rounded-2xl ${feature.bg} ${feature.accent} flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
                   <Icon className="w-6 h-6" />
                 </div>
                 <h3 className="text-lg font-bold font-brand text-slate-900 dark:text-white">

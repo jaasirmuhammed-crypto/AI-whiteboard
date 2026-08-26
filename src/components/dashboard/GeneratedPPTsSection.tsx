@@ -16,6 +16,7 @@ import { PresentationData } from '../../types/studyMaterial';
 import { useProject } from '../../context/ProjectContext';
 import { ExportService } from '../../services/exportService';
 import { useToast } from '../common/Toast';
+import { EmptyState } from '../common/EmptyState';
 
 interface GeneratedPPTsSectionProps {
   onPreviewPPT: (presentation: PresentationData) => void;
@@ -66,14 +67,6 @@ export const GeneratedPPTsSection: React.FC<GeneratedPPTsSectionProps> = ({
     showToast('Presentation exported as PDF! 📑', 'success');
   };
 
-  const handleOpenStudyHub = (project: WhiteboardProject, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (project.studyMaterials) {
-      setActiveStudyMaterials(project.studyMaterials);
-      setCurrentView('study_hub');
-    }
-  };
-
   return (
     <div className="space-y-6">
       
@@ -98,7 +91,7 @@ export const GeneratedPPTsSection: React.FC<GeneratedPPTsSectionProps> = ({
 
       {/* PPT Decks Grid */}
       {pptProjects.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
           {pptProjects.map((project) => {
             const pres = project.studyMaterials?.presentation!;
             const totalSlides = pres.slides?.length || 0;
@@ -108,7 +101,7 @@ export const GeneratedPPTsSection: React.FC<GeneratedPPTsSectionProps> = ({
               <div
                 key={project.id}
                 onClick={() => onPreviewPPT(pres)}
-                className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer space-y-4"
+                className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 hover:border-indigo-500/40 dark:hover:border-indigo-500/40 transition-all duration-200 flex flex-col justify-between cursor-pointer space-y-4"
               >
                 <div className="space-y-3">
                   {/* PPT Cover Preview */}
@@ -159,7 +152,7 @@ export const GeneratedPPTsSection: React.FC<GeneratedPPTsSectionProps> = ({
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
                   <button
                     onClick={() => onPreviewPPT(pres)}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                   >
                     <Eye className="w-3.5 h-3.5" />
                     <span>Preview</span>
@@ -177,7 +170,7 @@ export const GeneratedPPTsSection: React.FC<GeneratedPPTsSectionProps> = ({
                     <button
                       onClick={(e) => handleDownloadPPTX(project, e)}
                       disabled={downloadingId === project.id}
-                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
                       title="Download real .pptx PowerPoint file"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -191,23 +184,14 @@ export const GeneratedPPTsSection: React.FC<GeneratedPPTsSectionProps> = ({
           })}
         </div>
       ) : (
-        <div className="text-center py-16 px-4 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 space-y-4 bg-white/40 dark:bg-slate-900/40">
-          <Presentation className="w-12 h-12 text-slate-400 mx-auto" />
-          <div className="space-y-1">
-            <h4 className="text-base font-bold text-slate-900 dark:text-white font-brand">
-              No Generated Presentations Found
-            </h4>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Create a whiteboard, sketch your concepts, and click "AI Suite" to generate slide decks.
-            </p>
-          </div>
-          <button
-            onClick={onOpenCreateModal}
-            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 inline-flex items-center gap-2 cursor-pointer"
-          >
-            <span>Create Whiteboard</span>
-          </button>
-        </div>
+        <EmptyState
+          type={searchQuery ? 'search' : 'ppts'}
+          title="No Presentations Found"
+          description={searchQuery ? `No presentations matched "${searchQuery}".` : 'Create a whiteboard, sketch your concepts, and click "AI Suite" to generate slide decks.'}
+          actionText={searchQuery ? undefined : 'Create Whiteboard'}
+          onAction={onOpenCreateModal}
+          searchQuery={searchQuery}
+        />
       )}
 
     </div>

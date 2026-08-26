@@ -16,6 +16,7 @@ import { MCQQuizData } from '../../types/studyMaterial';
 import { useProject } from '../../context/ProjectContext';
 import { ExportService } from '../../services/exportService';
 import { useToast } from '../common/Toast';
+import { EmptyState } from '../common/EmptyState';
 
 interface GeneratedQuizzesSectionProps {
   onTakeQuiz: (quiz: MCQQuizData) => void;
@@ -47,8 +48,6 @@ export const GeneratedQuizzesSection: React.FC<GeneratedQuizzesSectionProps> = (
     }
     return true;
   });
-
-  const totalQuestionsAcrossAll = projects.reduce((acc, p) => acc + (p.studyMaterials?.quiz?.questions?.length || 0), 0);
 
   const handleDownloadPDF = (quiz: MCQQuizData, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -92,7 +91,7 @@ export const GeneratedQuizzesSection: React.FC<GeneratedQuizzesSectionProps> = (
 
       {/* Quizzes Grid */}
       {quizProjects.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
           {quizProjects.map((project) => {
             const quiz = project.studyMaterials?.quiz!;
             const totalQ = quiz.questions?.length || 0;
@@ -103,7 +102,7 @@ export const GeneratedQuizzesSection: React.FC<GeneratedQuizzesSectionProps> = (
               <div
                 key={project.id}
                 onClick={() => onTakeQuiz(quiz)}
-                className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer space-y-4"
+                className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 hover:border-emerald-500/40 dark:hover:border-emerald-500/40 transition-all duration-200 flex flex-col justify-between cursor-pointer space-y-4"
               >
                 <div className="space-y-3">
                   {/* Card Header */}
@@ -166,7 +165,7 @@ export const GeneratedQuizzesSection: React.FC<GeneratedQuizzesSectionProps> = (
 
                     <button
                       onClick={() => onTakeQuiz(quiz)}
-                      className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
+                      className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                     >
                       <Play className="w-3 h-3 fill-current" />
                       <span>Take Quiz</span>
@@ -179,23 +178,14 @@ export const GeneratedQuizzesSection: React.FC<GeneratedQuizzesSectionProps> = (
           })}
         </div>
       ) : (
-        <div className="text-center py-16 px-4 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 space-y-4 bg-white/40 dark:bg-slate-900/40">
-          <HelpCircle className="w-12 h-12 text-slate-400 mx-auto" />
-          <div className="space-y-1">
-            <h4 className="text-base font-bold text-slate-900 dark:text-white font-brand">
-              No Generated Quizzes Found
-            </h4>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Run the AI Suite from any whiteboard to generate instant interactive MCQ practice quizzes.
-            </p>
-          </div>
-          <button
-            onClick={onOpenCreateModal}
-            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 inline-flex items-center gap-2 cursor-pointer"
-          >
-            <span>Create Whiteboard</span>
-          </button>
-        </div>
+        <EmptyState
+          type={searchQuery ? 'search' : 'quizzes'}
+          title="No Generated Quizzes Found"
+          description={searchQuery ? `No quizzes matched "${searchQuery}".` : 'Run the AI Suite from any whiteboard to generate instant interactive MCQ practice quizzes.'}
+          actionText={searchQuery ? undefined : 'Create Whiteboard'}
+          onAction={onOpenCreateModal}
+          searchQuery={searchQuery}
+        />
       )}
 
     </div>

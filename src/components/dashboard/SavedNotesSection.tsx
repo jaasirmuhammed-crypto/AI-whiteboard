@@ -19,6 +19,7 @@ import { WhiteboardProject } from '../../types/user';
 import { useProject } from '../../context/ProjectContext';
 import { ExportService } from '../../services/exportService';
 import { useToast } from '../common/Toast';
+import { EmptyState } from '../common/EmptyState';
 
 interface SavedNotesSectionProps {
   onOpenNoteDetail: (project: WhiteboardProject) => void;
@@ -137,7 +138,7 @@ export const SavedNotesSection: React.FC<SavedNotesSectionProps> = ({
 
       {/* Notes Grid */}
       {notesList.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
           {notesList.map((project) => {
             const pkg = project.studyMaterials;
             const rawText = project.elements
@@ -150,7 +151,7 @@ export const SavedNotesSection: React.FC<SavedNotesSectionProps> = ({
               <div
                 key={project.id}
                 onClick={() => onOpenNoteDetail(project)}
-                className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer space-y-4"
+                className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 hover:border-cyan-500/40 dark:hover:border-cyan-500/40 transition-all duration-200 flex flex-col justify-between cursor-pointer space-y-4"
               >
                 <div className="space-y-3">
                   {/* Card Header */}
@@ -219,7 +220,7 @@ export const SavedNotesSection: React.FC<SavedNotesSectionProps> = ({
 
                     <button
                       onClick={() => onOpenNoteDetail(project)}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 text-xs font-semibold flex items-center gap-1 hover:bg-indigo-600 hover:text-white transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 text-xs font-semibold flex items-center gap-1 hover:bg-indigo-600 hover:text-white transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                     >
                       <Eye className="w-3 h-3" />
                       <span>View</span>
@@ -232,23 +233,14 @@ export const SavedNotesSection: React.FC<SavedNotesSectionProps> = ({
           })}
         </div>
       ) : (
-        <div className="text-center py-16 px-4 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 space-y-4 bg-white/40 dark:bg-slate-900/40">
-          <FileText className="w-12 h-12 text-slate-400 mx-auto" />
-          <div className="space-y-1">
-            <h4 className="text-base font-bold text-slate-900 dark:text-white font-brand">
-              No Saved Notes Found
-            </h4>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Write notes on your whiteboard and run the AI Suite to generate synthesized study guides.
-            </p>
-          </div>
-          <button
-            onClick={onOpenCreateModal}
-            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 inline-flex items-center gap-2 cursor-pointer"
-          >
-            <span>Start Whiteboard Notebook</span>
-          </button>
-        </div>
+        <EmptyState
+          type={searchQuery ? 'search' : 'notes'}
+          title="No Saved Notes Found"
+          description={searchQuery ? `No notes matched "${searchQuery}".` : 'Write notes on your whiteboard and run the AI Suite to generate synthesized study guides.'}
+          actionText={searchQuery ? undefined : 'Start Whiteboard Notebook'}
+          onAction={onOpenCreateModal}
+          searchQuery={searchQuery}
+        />
       )}
 
     </div>

@@ -14,6 +14,7 @@ import { WhiteboardProject } from '../../types/user';
 import { MindMapData } from '../../types/studyMaterial';
 import { useProject } from '../../context/ProjectContext';
 import { useToast } from '../common/Toast';
+import { EmptyState } from '../common/EmptyState';
 
 interface MindMapsSectionProps {
   onOpenCreateModal: () => void;
@@ -77,7 +78,7 @@ export const MindMapsSection: React.FC<MindMapsSectionProps> = ({ onOpenCreateMo
 
       {/* Mind Maps Grid */}
       {mindMapProjects.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
           {mindMapProjects.map((project) => {
             const mm = project.studyMaterials?.mindMap!;
             const totalNodes = countNodes(mm.root);
@@ -88,7 +89,7 @@ export const MindMapsSection: React.FC<MindMapsSectionProps> = ({ onOpenCreateMo
               <div
                 key={project.id}
                 onClick={() => handleOpenMindMap(project)}
-                className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between cursor-pointer space-y-4"
+                className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 hover:border-purple-500/40 dark:hover:border-purple-500/40 transition-all duration-200 flex flex-col justify-between cursor-pointer space-y-4"
               >
                 <div className="space-y-3">
                   {/* Visual Mind Map Concept Visualizer Box */}
@@ -159,7 +160,7 @@ export const MindMapsSection: React.FC<MindMapsSectionProps> = ({ onOpenCreateMo
 
                   <button
                     onClick={() => handleOpenMindMap(project)}
-                    className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                   >
                     <ExternalLink className="w-3 h-3" />
                     <span>Open Mind Map</span>
@@ -171,23 +172,14 @@ export const MindMapsSection: React.FC<MindMapsSectionProps> = ({ onOpenCreateMo
           })}
         </div>
       ) : (
-        <div className="text-center py-16 px-4 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 space-y-4 bg-white/40 dark:bg-slate-900/40">
-          <Network className="w-12 h-12 text-slate-400 mx-auto" />
-          <div className="space-y-1">
-            <h4 className="text-base font-bold text-slate-900 dark:text-white font-brand">
-              No Concept Mind Maps Found
-            </h4>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Sketch your lecture notes and trigger the AI Suite to generate hierarchical node mind maps.
-            </p>
-          </div>
-          <button
-            onClick={onOpenCreateModal}
-            className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 inline-flex items-center gap-2 cursor-pointer"
-          >
-            <span>Create Whiteboard</span>
-          </button>
-        </div>
+        <EmptyState
+          type={searchQuery ? 'search' : 'mindmaps'}
+          title="No Mind Maps Found"
+          description={searchQuery ? `No mind maps matched "${searchQuery}".` : 'Sketch your lecture notes and trigger the AI Suite to generate hierarchical node mind maps.'}
+          actionText={searchQuery ? undefined : 'Create Whiteboard'}
+          onAction={onOpenCreateModal}
+          searchQuery={searchQuery}
+        />
       )}
 
     </div>

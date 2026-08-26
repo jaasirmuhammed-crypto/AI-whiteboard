@@ -19,6 +19,7 @@ import {
 import { WhiteboardProject } from '../../types/user';
 import { useProject } from '../../context/ProjectContext';
 import { useToast } from '../common/Toast';
+import { EmptyState } from '../common/EmptyState';
 
 interface RecentWhiteboardsSectionProps {
   onOpenCreateModal: () => void;
@@ -124,7 +125,7 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
       {/* Whiteboards Grid / List Display */}
       {filteredProjects.length > 0 ? (
         viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
             {filteredProjects.map((project) => {
               const hasPPT = !!project.studyMaterials?.presentation;
               const hasMCQ = !!project.studyMaterials?.quiz;
@@ -133,7 +134,7 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
               return (
                 <div
                   key={project.id}
-                  className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+                  className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 hover:border-indigo-500/40 dark:hover:border-indigo-500/40 transition-all duration-200 flex flex-col justify-between"
                 >
                   <div className="space-y-3">
                     {/* Thumbnail / Canvas Snapshot */}
@@ -209,7 +210,7 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
                   <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-1.5">
                     <button
                       onClick={() => loadProject(project.id)}
-                      className="flex-1 py-2 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 text-indigo-600 dark:text-indigo-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="flex-1 py-2 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 text-indigo-600 dark:text-indigo-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                       <span>Open Canvas</span>
@@ -236,7 +237,7 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
             })}
           </div>
         ) : (
-          <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 shadow-xs">
+          <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 shadow-xs animate-in fade-in duration-200">
             {filteredProjects.map((project) => (
               <div
                 key={project.id}
@@ -266,7 +267,7 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     onClick={() => loadProject(project.id)}
-                    className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Open</span>
@@ -291,24 +292,14 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
           </div>
         )
       ) : (
-        <div className="text-center py-16 px-4 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 space-y-4 bg-white/40 dark:bg-slate-900/40">
-          <FolderPlus className="w-12 h-12 text-slate-400 mx-auto" />
-          <div className="space-y-1">
-            <h4 className="text-base font-bold text-slate-900 dark:text-white font-brand">
-              No Whiteboards Found
-            </h4>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              {searchQuery ? `No whiteboards matched "${searchQuery}".` : 'Start writing on a fresh digital canvas.'}
-            </p>
-          </div>
-          <button
-            onClick={onOpenCreateModal}
-            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 inline-flex items-center gap-2 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create New Whiteboard</span>
-          </button>
-        </div>
+        <EmptyState
+          type={searchQuery ? 'search' : 'notebooks'}
+          title="No Whiteboards Found"
+          description={searchQuery ? `No notebooks matched "${searchQuery}".` : 'Start writing on a fresh digital whiteboard canvas.'}
+          actionText={searchQuery ? undefined : 'Create Whiteboard'}
+          onAction={onOpenCreateModal}
+          searchQuery={searchQuery}
+        />
       )}
 
     </div>

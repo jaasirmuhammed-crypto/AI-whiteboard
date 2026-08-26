@@ -16,6 +16,7 @@ import { Modal } from '../common/Modal';
 import { BackgroundPattern, WhiteboardElement } from '../../types/whiteboard';
 import { useProject } from '../../context/ProjectContext';
 import { useToast } from '../common/Toast';
+import { triggerSubtleConfetti } from '../../utils/confettiUtil';
 
 interface CreateWhiteboardModalProps {
   isOpen: boolean;
@@ -133,6 +134,7 @@ export const CreateWhiteboardModal: React.FC<CreateWhiteboardModalProps> = ({ is
     }
 
     showToast(`Whiteboard "${finalTitle}" initialized! 🎨`, 'success');
+    triggerSubtleConfetti(0.5, 0.4);
     onClose();
   };
 

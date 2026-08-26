@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { 
   Presentation, 
   HelpCircle, 
@@ -23,7 +23,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, onDel
   const hasMindMap = !!project.studyMaterials?.mindMap;
 
   return (
-    <div className="group relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+    <div className="group card-interactive relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 shadow-xs flex flex-col justify-between">
       
       {/* Thumbnail or Icon Preview Header */}
       <div className="space-y-3">

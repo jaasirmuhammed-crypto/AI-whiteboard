@@ -16,6 +16,7 @@ import { MCQQuizData } from '../../types/studyMaterial';
 import { ExportService } from '../../services/exportService';
 import { useToast } from '../common/Toast';
 import { useProject } from '../../context/ProjectContext';
+import { triggerStarBurst } from '../../utils/confettiUtil';
 
 interface QuizPreviewModalProps {
   isOpen: boolean;
@@ -48,6 +49,10 @@ export const QuizPreviewModal: React.FC<QuizPreviewModalProps> = ({ isOpen, onCl
     if (isAnswered) return;
     setSelectedAnswers((prev) => ({ ...prev, [currentIndex]: optIndex }));
     setShowExplanation((prev) => ({ ...prev, [currentIndex]: true }));
+
+    if (optIndex === currentQ.correctAnswerIndex) {
+      triggerStarBurst(0.5, 0.5);
+    }
   };
 
   const handleReset = () => {
