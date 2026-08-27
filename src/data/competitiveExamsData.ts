@@ -70,7 +70,158 @@ export const INITIAL_COMPETITIVE_EXAMS: Exam[] = [
     questionStyles: ['Single choice MCQs', 'Numerical value questions', 'Formula applications', 'Direct concept testing'],
     examFocusDirectives: 'Prioritize formula precision, time efficiency, speed-accuracy balance, and NCERT-based core concepts.',
     disclaimer: 'Check NTA portal (jeemain.nta.ac.in) for session updates and official syllabus changes.',
-    subjects: []
+    subjects: [
+      {
+        id: 'jee-main-physics',
+        name: 'Physics',
+        topics: [
+          {
+            id: 'jee-physics-mechanics',
+            name: 'Mechanics (Kinematics, Laws of Motion & Work-Energy)',
+            overview: 'Core mechanics covering vector motion, Newton\'s laws of motion, friction, work-energy theorem, and momentum conservation.',
+            importantPoints: [
+              'Kinematic equations apply only under constant acceleration.',
+              'Work done by conservative forces equals negative change in potential energy (W = -ΔU).',
+              'Linear momentum is conserved when net external force is zero.',
+            ],
+            definitions: [
+              { term: 'Impulse', definition: 'Change in linear momentum (J = ∫ F dt).' },
+              { term: 'Conservative Force', definition: 'A force where work done depends only on initial and final positions (e.g., gravity, spring force).' },
+            ],
+            formulas: [
+              { name: 'Range of Projectile', formula: 'R = (u^2 sin 2θ) / g' },
+              { name: 'Work-Energy Theorem', formula: 'W_net = ΔK = (1/2) m (v^2 - u^2)' },
+            ],
+            commonMistakes: ['Confusing average velocity with instantaneous velocity when acceleration varies with time.'],
+            examTips: ['Draw free-body diagrams (FBD) systematically before writing equilibrium equations.'],
+            quickRevision: ['v = u + at', 's = ut + 0.5at^2', 'v^2 = u^2 + 2as', 'p = mv'],
+            summary: 'High weightage core section in JEE Main Physics Paper 1.',
+            diagramType: 'concept_map',
+          },
+          {
+            id: 'jee-physics-electrodynamics',
+            name: 'Electrodynamics & Modern Physics',
+            overview: 'Electrostatics, Current Electricity, Magnetic Effects of Current, EMI, and Modern Physics (Photoelectric Effect & Bohr Model).',
+            importantPoints: [
+              'Gauss\'s law relates net electric flux through a closed surface to enclosed charge.',
+              'Ohm\'s law microscopic form: j = σ E.',
+              'Photoelectric equation: hν = Φ + K_max.',
+            ],
+            definitions: [
+              { term: 'Drift Velocity', definition: 'Average velocity attained by charged particles in an electric field (v_d = eEτ/m).' },
+            ],
+            formulas: [
+              { name: 'Drift Current', formula: 'I = n e A v_d' },
+              { name: 'Photoelectric Effect', formula: 'K_max = h ν - h ν_0' },
+            ],
+            commonMistakes: ['Forgetting that threshold wavelength is inversely proportional to work function.'],
+            examTips: ['Memorize de Broglie wavelength expressions in terms of kinetic energy and accelerating potential.'],
+            quickRevision: ['V = IR', 'B = μ0 n I (solenoid)', 'E = h c / λ'],
+            summary: 'High scoring section in JEE Main Physics.',
+            diagramType: 'process',
+          }
+        ]
+      },
+      {
+        id: 'jee-main-chemistry',
+        name: 'Chemistry',
+        topics: [
+          {
+            id: 'jee-chem-physical',
+            name: 'Physical Chemistry (Kinetics, Thermodynamics & Equilibrium)',
+            overview: 'Quantitative study of chemical reactions, enthalpy, entropy, reaction rates, and chemical equilibrium.',
+            importantPoints: [
+              'First-order half-life is independent of initial reactant concentration (t_1/2 = 0.693 / k).',
+              'Gibbs Free Energy criterion for spontaneity: ΔG = ΔH - TΔS < 0.',
+              'Le Chatelier\'s principle predicts the effect of concentration, pressure, and temperature changes on equilibrium.',
+            ],
+            definitions: [
+              { term: 'Arrhenius Equation', definition: 'Relates reaction rate constant to activation energy and temperature (k = A e^(-Ea/RT)).' },
+            ],
+            formulas: [
+              { name: 'First Order Kinetics', formula: 'k = (2.303 / t) log([A]_0 / [A])' },
+              { name: 'Gibbs-Helmholtz', formula: 'ΔG° = -RT ln(K_eq)' },
+            ],
+            commonMistakes: ['Unit errors between Joules and kiloJoules when calculating ΔG = ΔH - TΔS.'],
+            examTips: ['Always verify if a reaction rate equation specifies elementary or complex multi-step mechanism.'],
+            quickRevision: ['t_1/2 = 0.693/k', 'pH = -log[H+]', 'ΔG = ΔH - TΔS'],
+            summary: 'Numerical-rich section in JEE Main Chemistry.',
+            diagramType: 'comparison',
+          },
+          {
+            id: 'jee-chem-organic',
+            name: 'Organic & Inorganic Chemistry',
+            overview: 'Reaction mechanisms, electrophilic aromatic substitution, carbonyl chemistry, periodic trends, and coordination complexes.',
+            importantPoints: [
+              'SN1 proceeds via carbocation with racemization; SN2 proceeds via single-step backside attack with Walden inversion.',
+              'Ligand field strength: spectrochemical series dictates inner vs outer orbital complex geometry.',
+              'Aldol condensation occurs in aldehydes/ketones containing at least one α-hydrogen.',
+            ],
+            definitions: [
+              { term: 'Spectrochemical Series', definition: 'Ordering of ligands based on their crystal field splitting energy (Δ_oct).' },
+            ],
+            formulas: [
+              { name: 'Spin-Only Magnetic Moment', formula: 'μ = sqrt(n(n + 2)) B.M.' },
+            ],
+            commonMistakes: ['Assuming tertiary halides undergo SN2 substitution in polar aprotic solvents.'],
+            examTips: ['Learn named reactions and reagents (Grignard, PCC, LiAlH4, DIBAL-H, Tollens).'],
+            quickRevision: ['Markovnikov rule', 'Huckel\'s 4n+2 rule', 'Bond Order = 0.5*(Nb - Na)'],
+            summary: 'High accuracy conceptual section in JEE Main Chemistry.',
+            diagramType: 'flowchart',
+          }
+        ]
+      },
+      {
+        id: 'jee-main-math',
+        name: 'Mathematics',
+        topics: [
+          {
+            id: 'jee-math-calculus',
+            name: 'Calculus & Integration',
+            overview: 'Differential calculus, limits, continuity, application of derivatives (maxima/minima), and definite integrals.',
+            importantPoints: [
+              'L\'Hôpital\'s rule applies only to indeterminate forms (0/0 or ∞/∞).',
+              'King\'s property: ∫[a to b] f(x) dx = ∫[a to b] f(a + b - x) dx.',
+              'Rolle\'s Theorem and Lagrange\'s Mean Value Theorem conditions.',
+            ],
+            definitions: [
+              { term: 'Continuity', definition: 'A function is continuous at x = a if lim_{x->a} f(x) = f(a).' },
+            ],
+            formulas: [
+              { name: 'King\'s Property', formula: '∫_a^b f(x)dx = ∫_a^b f(a + b - x)dx' },
+              { name: 'Standard Limit', formula: 'lim_{x->0} (sin x)/x = 1' },
+            ],
+            commonMistakes: ['Applying L\'Hôpital\'s rule when the limit is not in an indeterminate form.'],
+            examTips: ['Use symmetry and periodic properties to simplify definite integrals quickly.'],
+            quickRevision: ['d/dx (tan x) = sec^2 x', '∫ e^x [f(x) + f\'(x)] dx = e^x f(x) + C'],
+            summary: 'Highest weightage domain in JEE Main Mathematics.',
+            diagramType: 'concept_map',
+          },
+          {
+            id: 'jee-math-algebra-coordinate',
+            name: 'Algebra, Vectors & Coordinate Geometry',
+            overview: 'Matrices, determinants, quadratic equations, straight lines, circles, conic sections, and 3D vectors.',
+            importantPoints: [
+              'Determinant of skew-symmetric matrix of odd order is always zero.',
+              'Condition for two 3D lines to be coplanar: (x2 - x1) · (b1 × b2) = 0.',
+              'Dot product gives perpendicularity (a · b = 0); cross product gives parallelism (a × b = 0).',
+            ],
+            definitions: [
+              { term: 'Eigenvalues', definition: 'Scalars λ satisfying det(A - λI) = 0.' },
+            ],
+            formulas: [
+              { name: 'Vector Cross Product', formula: '|a × b| = |a| |b| sin θ' },
+              { name: 'Ellipse Eccentricity', formula: 'e = sqrt(1 - b^2 / a^2) (for a > b)' },
+            ],
+            commonMistakes: ['Confusing distance between parallel planes formula constants.'],
+            examTips: ['Use matrix determinant properties to avoid lengthy direct expansion.'],
+            quickRevision: ['det(AB) = det(A)det(B)', 'a · b = |a||b|cos θ'],
+            summary: 'High accuracy scoring chapters in JEE Main Math.',
+            diagramType: 'concept_map',
+          }
+        ]
+      }
+    ]
   },
   {
     id: 'jee-advanced',
@@ -90,7 +241,30 @@ export const INITIAL_COMPETITIVE_EXAMS: Exam[] = [
     questionStyles: ['One or more than one correct options', 'Numerical value / non-negative integer', 'Paragraph / Comprehensive case questions', 'Matrix match'],
     examFocusDirectives: 'Deep conceptual derivations, multi-topic synthesis, advanced numerical mechanics, and rigorous mathematical proofs.',
     disclaimer: 'Official syllabus and criteria released annually on jeeadv.ac.in by organizing IIT.',
-    subjects: []
+    subjects: [
+      {
+        id: 'jee-adv-physics',
+        name: 'Physics',
+        topics: [
+          {
+            id: 'rotational-dynamics',
+            name: 'Rotational Dynamics & Rigid Body Mechanics',
+            overview: 'Advanced rigid body motion, pure rolling on rough surfaces, angular momentum conservation, and gyroscopic precession.',
+            importantPoints: [
+              'Torque about any point is τ = dL/dt only if the point is fixed or the center of mass.',
+              'Instantaneous Center of Zero Velocity (ICR) simplifies rolling kinematics.',
+            ],
+            definitions: [{ term: 'Radius of Gyration', definition: 'Distance k such that I = M k^2.' }],
+            formulas: [{ name: 'Pure Rolling Acceleration', formula: 'a_cm = (g sin θ) / (1 + I_cm/(M R^2))' }],
+            commonMistakes: ['Assuming friction always opposes motion in rolling (it can drive rolling).'],
+            examTips: ['Conserve angular momentum about the point of contact to eliminate normal and friction torque.'],
+            quickRevision: ['τ = I α', 'L = I ω', 'K_total = 0.5 M v_cm^2 + 0.5 I_cm ω^2'],
+            summary: 'Crucial high-weightage topic for JEE Advanced Physics Paper 1 & 2.',
+            diagramType: 'concept_map',
+          }
+        ]
+      }
+    ]
   },
   {
     id: 'neet-ug',
@@ -110,7 +284,31 @@ export const INITIAL_COMPETITIVE_EXAMS: Exam[] = [
     questionStyles: ['NCERT line-by-line MCQs', 'Diagrammatic identification', 'Assertion & Reason', 'Statement I & II matching'],
     examFocusDirectives: 'Focus on NCERT biological mechanisms, physiological pathways, clinical terminology, and diagnostic diagrams.',
     disclaimer: 'Verify syllabus updates and counseling information at neet.nta.nic.in and mcc.nic.in.',
-    subjects: []
+    subjects: [
+      {
+        id: 'neet-biology',
+        name: 'Biology (Botany & Zoology)',
+        topics: [
+          {
+            id: 'molecular-basis-inheritance',
+            name: 'Molecular Basis of Inheritance & Genetics',
+            overview: 'Structure of DNA/RNA, replication, transcription, translation, genetic code, and regulation of gene expression (Lac Operon).',
+            importantPoints: [
+              'Chargaff\'s rule: In dsDNA, [A] = [T] and [G] = [C].',
+              'DNA replication is semiconservative (proven by Meselson & Stahl).',
+              'AUG codes for Methionine and acts as the initiation codon.',
+            ],
+            definitions: [{ term: 'Okazaki Fragments', definition: 'Short synthesized DNA fragments on the lagging strand.' }],
+            formulas: [{ name: 'Chargaff\'s Rule', formula: 'A + G = T + C (Purines = Pyrimidines)' }],
+            commonMistakes: ['Applying Chargaff\'s rule to single-stranded RNA (it applies only to double-stranded DNA).'],
+            examTips: ['Memorize the enzymes involved in DNA replication and transcription in prokaryotes vs eukaryotes.'],
+            quickRevision: ['A=T (2 H-bonds)', 'G≡C (3 H-bonds)', 'Stop codons: UAA, UAG, UGA'],
+            summary: 'High weightage 15+ marks topic in NEET Biology.',
+            diagramType: 'process',
+          }
+        ]
+      }
+    ]
   },
   {
     id: 'gate',
@@ -1095,10 +1293,38 @@ export const INITIAL_COMPETITIVE_EXAMS: Exam[] = [
 ];
 
 export const INITIAL_PRACTICE_QUESTIONS: MCQQuestion[] = [
+  // JEE Main Question
+  {
+    id: 'q-jee-main-1',
+    examId: 'jee-main',
+    examName: 'JEE Main',
+    subject: 'Physics',
+    chapter: 'Thermodynamics & Kinetic Theory',
+    topicId: 'jee-physics-mechanics',
+    topicName: 'Physics • Thermodynamics & Ideal Gas Law',
+    question: 'An ideal diatomic gas (Cv = 5/2 R) undergoes an adiabatic expansion where its volume doubles. If the initial temperature was T_1, what is the final temperature T_2 of the gas?',
+    options: [
+      'T_1 / (2^(2/5))',
+      'T_1 / (2^(5/2))',
+      'T_1 * 2^(2/5)',
+      'T_1 / 2',
+    ],
+    correctAnswer: 0,
+    explanation: 'For a diatomic ideal gas, γ = Cp / Cv = (7/2 R) / (5/2 R) = 7/5 = 1.4. Under adiabatic process: T1 * V1^(γ - 1) = T2 * V2^(γ - 1). Here V2 = 2 * V1 and γ - 1 = 7/5 - 1 = 2/5. Therefore, T2 = T1 * (V1 / V2)^(2/5) = T1 / (2^(2/5)).',
+    difficulty: 'medium',
+    questionType: 'single_choice',
+    isSourceBased: true,
+    source: 'JEE Main',
+    sourceTag: 'JEE Main 2024 Session 1',
+    year: 2024,
+  },
   // UPSC Question
   {
     id: 'q-upsc-1',
     examId: 'upsc-cse',
+    examName: 'UPSC Civil Services Examination',
+    subject: 'Indian Polity & Governance',
+    chapter: 'Fundamental Rights',
     topicId: 'preamble-fundamental-rights',
     topicName: 'Preamble & Fundamental Rights (Articles 12-35)',
     question: 'With reference to the Constitution of India, which of the following statements is/are correct?\n1. Fundamental Rights under Articles 20 and 21 cannot be suspended even during a National Emergency.\n2. The Right to Property was originally a Fundamental Right under Article 31 but was converted into a Legal Right by the 44th Constitutional Amendment.\nSelect the correct answer using the code given below:',
@@ -1111,13 +1337,19 @@ export const INITIAL_PRACTICE_QUESTIONS: MCQQuestion[] = [
     correctAnswer: 2,
     explanation: 'Both statements are correct. Article 359 explicitly bars the suspension of Articles 20 (Protection in respect of conviction for offences) and 21 (Protection of life and personal liberty) even during a National Emergency. The 44th Amendment Act (1978) omitted Article 31 and inserted Article 300A, making Right to Property a legal/constitutional right.',
     difficulty: 'medium',
+    questionType: 'multi_statement',
     isSourceBased: true,
+    source: 'UPSC CSE',
     sourceTag: 'UPSC Civil Services Prelims 2021',
+    year: 2021,
   },
   // JEE Advanced Question
   {
     id: 'q-jee-1',
     examId: 'jee-advanced',
+    examName: 'JEE Advanced',
+    subject: 'Physics',
+    chapter: 'Rotational Mechanics',
     topicId: 'rotational-dynamics',
     topicName: 'Rotational Dynamics & Rigid Body Mechanics',
     question: 'A uniform solid sphere of mass M and radius R rolls purely without slipping down an inclined plane of angle θ. What is the acceleration of the center of mass of the sphere?',
@@ -1130,13 +1362,19 @@ export const INITIAL_PRACTICE_QUESTIONS: MCQQuestion[] = [
     correctAnswer: 0,
     explanation: 'For pure rolling on an incline: a_cm = (g sin θ) / (1 + I_cm / (M R^2)). For a solid sphere, I_cm = (2/5) M R^2. Thus, a_cm = (g sin θ) / (1 + 2/5) = (5/7) g sin θ.',
     difficulty: 'hard',
+    questionType: 'single_choice',
     isSourceBased: true,
+    source: 'JEE Advanced',
     sourceTag: 'JEE Advanced Physics 2020',
+    year: 2020,
   },
   // NEET-UG Question
   {
     id: 'q-neet-1',
     examId: 'neet-ug',
+    examName: 'NEET-UG',
+    subject: 'Biology',
+    chapter: 'Genetics',
     topicId: 'molecular-basis-inheritance',
     topicName: 'Molecular Basis of Inheritance (DNA & Replication)',
     question: 'If a double-stranded DNA sample contains 30% Cytosine, what percentage of Adenine will be present in this sample according to Chargaff\'s rules?',
@@ -1144,25 +1382,37 @@ export const INITIAL_PRACTICE_QUESTIONS: MCQQuestion[] = [
     correctAnswer: 0,
     explanation: 'According to Chargaff\'s rules, [C] = [G] and [A] = [T]. If Cytosine = 30%, Guanine = 30% (Total C+G = 60%). Remaining 40% consists of Adenine + Thymine. Therefore, Adenine = 40% / 2 = 20%.',
     difficulty: 'easy',
+    questionType: 'single_choice',
     isSourceBased: true,
+    source: 'NEET-UG',
     sourceTag: 'NEET-UG Biology 2022',
+    year: 2022,
   },
   // SAT Question
   {
     id: 'q-sat-1',
     examId: 'sat',
+    examName: 'Digital SAT',
+    subject: 'Mathematics',
+    chapter: 'Quadratic Functions',
     question: 'The function f is defined by f(x) = 3x^2 - 12x + 7. For what value of x does f(x) reach its minimum value?',
     options: ['x = 2', 'x = 4', 'x = -2', 'x = -4'],
     correctAnswer: 0,
     explanation: 'For a quadratic function f(x) = ax^2 + bx + c with a > 0, the minimum vertex occurs at x = -b / (2a). Here, a = 3 and b = -12. Thus, x = -(-12) / (2 * 3) = 12 / 6 = 2.',
     difficulty: 'medium',
+    questionType: 'single_choice',
     isSourceBased: true,
+    source: 'Digital SAT',
     sourceTag: 'Digital SAT Math Official Practice',
+    year: 2023,
   },
   // GMAT Focus Question
   {
     id: 'q-gmat-1',
     examId: 'gmat',
+    examName: 'GMAT Focus Edition',
+    subject: 'Data Insights / Quantitative',
+    chapter: 'Data Sufficiency',
     question: 'Is the integer n divisible by 6?\nStatement (1): n is divisible by 2.\nStatement (2): n is divisible by 3.\nDetermine which statement(s) are sufficient to answer the question:',
     options: [
       'Statement (1) ALONE is sufficient, but Statement (2) alone is not sufficient.',
@@ -1173,7 +1423,10 @@ export const INITIAL_PRACTICE_QUESTIONS: MCQQuestion[] = [
     correctAnswer: 2,
     explanation: 'An integer is divisible by 6 if and only if it is divisible by both 2 and 3 (since 2 and 3 are coprime factors of 6). Statement (1) gives divisibility by 2 only (insufficient, e.g. n=4). Statement (2) gives divisibility by 3 only (insufficient, e.g. n=9). Combined together, n is divisible by both 2 and 3, thus divisible by 6 (Sufficient). Option C is correct.',
     difficulty: 'medium',
+    questionType: 'case_based',
     isSourceBased: true,
+    source: 'GMAT Focus',
     sourceTag: 'GMAT Focus Data Sufficiency Official',
+    year: 2024,
   }
 ];

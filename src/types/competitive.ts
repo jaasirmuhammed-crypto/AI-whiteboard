@@ -59,11 +59,18 @@ export interface MCQQuestion {
   correctAnswer: number; // 0, 1, 2, 3
   explanation: string;
   difficulty: 'easy' | 'medium' | 'hard';
+  examId: string; // Strictly required exam identifier (e.g. 'jee-main', 'upsc-cse')
+  examName?: string;
+  examLevel?: string;
+  subject?: string;
+  chapter?: string;
   topicId?: string;
   topicName?: string;
-  examId?: string;
+  questionType?: 'single_choice' | 'assertion_reason' | 'numerical' | 'multi_statement' | 'case_based';
   isSourceBased: boolean; // True for Previous Year/Source Questions, False for AI-Generated Practice
-  sourceTag?: string; // e.g. "UPSC Prelims 2024" or "JEE Advanced 2023 Paper 1"
+  source?: string;
+  sourceTag?: string; // e.g. "JEE Main 2024 Session 1" or "UPSC CSE Prelims 2023"
+  year?: number | string;
 }
 
 export interface ExamResult {

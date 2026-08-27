@@ -109,30 +109,149 @@ export class CompetitiveService {
     return exams;
   }
 
-  // Load Questions
+  // ==========================================
+  // 🔒 STRICT EXAM VALIDATION & ISOLATION
+  // ==========================================
+
+  /**
+   * Strict validation rule: verifies that a question strictly belongs to the target exam
+   * and contains zero cross-exam contamination (e.g. rejecting CFA/UPSC in JEE Main).
+   */
+  static validateQuestion(question: MCQQuestion, targetExamId: string): boolean {
+    if (!question || !question.question || !question.options || question.options.length < 4) {
+      return false;
+    }
+    if (!targetExamId) return true;
+
+    const target = targetExamId.toLowerCase().trim();
+    const qExam = (question.examId || '').toLowerCase().trim();
+
+    // 1. Strict Exam ID constraint
+    if (qExam !== target) {
+      return false;
+    }
+
+    // 2. Reject Cross-Exam Contamination Markers in source tag and topic
+    const sourceTag = (question.sourceTag || question.source || '').toLowerCase();
+    const topic = (question.topicName || '').toLowerCase();
+
+    const checkContamination = (keywords: string[]) => {
+      return keywords.some(
+        (kw) => sourceTag.includes(kw) || topic.includes(kw)
+      );
+    };
+
+    if (target === 'jee-main') {
+      if (checkContamination(['upsc', 'cfa', 'cat', 'gate', 'usmle', 'nclex', 'gmat', 'sat', 'gre', 'neet', 'civil services', 'corporate finance', 'wacc', 'capm', 'habeas corpus', 'biodiversity'])) {
+        return false;
+      }
+    } else if (target === 'jee-advanced') {
+      if (checkContamination(['upsc', 'cfa', 'cat', 'gate', 'usmle', 'nclex', 'gmat', 'sat', 'gre', 'neet', 'civil services'])) {
+        return false;
+      }
+    } else if (target === 'upsc-cse') {
+      if (checkContamination(['jee', 'cfa', 'gate', 'usmle', 'nclex', 'gmat', 'sat', 'neet', 'iit'])) {
+        return false;
+      }
+    } else if (target === 'neet-ug') {
+      if (checkContamination(['upsc', 'cfa', 'cat', 'gate', 'usmle', 'nclex', 'gmat', 'sat', 'gre', 'jee', 'civil services'])) {
+        return false;
+      }
+    } else if (target === 'cfa-level-1') {
+      if (checkContamination(['upsc', 'jee', 'neet', 'gate', 'usmle', 'nclex', 'sat', 'gre', 'civil services'])) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // Load Questions with Hard Exam Constraint
   static getQuestions(examId?: string, topicId?: string): MCQQuestion[] {
     let allQuestions: MCQQuestion[] = [];
     try {
       const stored = localStorage.getItem(QUESTIONS_KEY);
-      allQuestions = stored ? JSON.parse(stored) : ALL_INITIAL_QUESTIONS;
+      if (stored) {
+        allQuestions = JSON.parse(stored);
+        // Ensure any newly added static questions exist
+        const storedIds = new Set(allQuestions.map((q) => q.id));
+        ALL_INITIAL_QUESTIONS.forEach((q) => {
+          if (!storedIds.has(q.id)) {
+            allQuestions.push(q);
+          }
+        });
+      } else {
+        allQuestions = ALL_INITIAL_QUESTIONS;
+      }
     } catch (e) {
       allQuestions = ALL_INITIAL_QUESTIONS;
     }
 
+    // Hard Exam Lock Constraint: If examId is provided, filter strictly
     if (examId) {
-      const byExam = allQuestions.filter((q) => q.examId === examId);
-      if (byExam.length > 0) {
-        allQuestions = byExam;
-      }
+      allQuestions = allQuestions.filter((q) => this.validateQuestion(q, examId));
     }
+
+    // Filter by topic if specified and matches
     if (topicId && topicId !== 'all') {
-      const byTopic = allQuestions.filter((q) => q.topicId === topicId);
-      if (byTopic.length > 0) {
-        allQuestions = byTopic;
+      const topicFiltered = allQuestions.filter((q) => q.topicId === topicId);
+      if (topicFiltered.length > 0) {
+        return topicFiltered;
       }
     }
 
     return allQuestions;
+  }
+
+  static getQuestionsByExam(examId: string, topicId?: string): MCQQuestion[] {
+    return this.getQuestions(examId, topicId);
+  }
+
+  /**
+   * Generates high-yield fallback questions strictly derived from the target exam's syllabus & subjects.
+   * Never pulls questions from another exam.
+   */
+  static generateExamFallbackQuestions(exam: Exam, topicId?: string, count: number = 5): MCQQuestion[] {
+    const fallbacks: MCQQuestion[] = [];
+    const subjects = exam.subjects && exam.subjects.length > 0 ? exam.subjects : [];
+    
+    let candidateTopics = subjects.flatMap((s) => s.topics);
+    if (topicId && topicId !== 'all') {
+      const specific = candidateTopics.filter((t) => t.id === topicId);
+      if (specific.length > 0) candidateTopics = specific;
+    }
+
+    candidateTopics.forEach((t, i) => {
+      if (fallbacks.length >= count) return;
+      if (t.importantPoints && t.importantPoints.length > 0) {
+        const pt = t.importantPoints[i % t.importantPoints.length];
+        fallbacks.push({
+          id: `gen_${exam.id}_${t.id}_${i}_${Date.now()}`,
+          examId: exam.id,
+          examName: exam.name,
+          subject: subjects.find((s) => s.topics.some((top) => top.id === t.id))?.name || exam.name,
+          chapter: t.name,
+          topicId: t.id,
+          topicName: `${t.name}`,
+          question: `With reference to ${t.name} in ${exam.name}, which of the following is correct?\n\nKey Concept: "${pt}"`,
+          options: [
+            `It represents an established core principle: ${pt}`,
+            `It only applies in hypothetical scenarios and is rejected in ${exam.name}`,
+            `It is an inverse formulation of ${t.name}`,
+            `None of the above statements are accurate for ${exam.name}`,
+          ],
+          correctAnswer: 0,
+          explanation: `In ${exam.name} syllabus for ${t.name}, this is a high-yield concept. ${t.summary || t.overview || pt}`,
+          difficulty: 'medium',
+          questionType: 'single_choice',
+          isSourceBased: true,
+          source: exam.name,
+          sourceTag: `${exam.name} High-Yield Practice`,
+        });
+      }
+    });
+
+    return fallbacks.slice(0, count);
   }
 
   static addQuestion(question: MCQQuestion): MCQQuestion[] {

@@ -238,6 +238,17 @@ const MainAppContent: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalShortcuts);
   }, []);
 
+  // Auto-open personalized onboarding questionnaire for first-time visitors
+  useEffect(() => {
+    const hasCompleted = localStorage.getItem('has_completed_onboarding');
+    if (!hasCompleted) {
+      const timer = setTimeout(() => {
+        setOnboardingTourOpen(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // Track when upgrade / quota modals are viewed
   useEffect(() => {
     if (quotaModalOpen || tokensExhaustedModalOpen) {
@@ -986,10 +997,18 @@ const MainAppContent: React.FC = () => {
         onClose={() => setVoiceAnnotationBarOpen(false)}
       />
 
-      {/* Interactive 30-Second Onboarding Tour */}
+      {/* Personalized First-Time Onboarding Flow */}
       <OnboardingTourModal
         isOpen={onboardingTourOpen}
         onClose={() => setOnboardingTourOpen(false)}
+        onCompletePreferences={(prefs) => {
+          if (prefs.studyCategory === 'competitive') {
+            setCurrentView('competitive');
+          } else {
+            setCurrentView('whiteboard');
+          }
+          showToast(`Welcome! Workspace customized for ${prefs.studyCategory.replace('_', ' ')}.`, 'success');
+        }}
       />
 
     </div>

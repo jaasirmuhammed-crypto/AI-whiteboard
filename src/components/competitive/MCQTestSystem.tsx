@@ -48,27 +48,42 @@ export const MCQTestSystem: React.FC<MCQTestSystemProps> = ({
   // Results State
   const [latestResult, setLatestResult] = useState<ExamResult | null>(null);
 
-  // Strictly loads questions ONLY belonging to the syllabus and exam domains
+  // Strictly loads questions ONLY belonging to the current exam and its syllabus
   const loadQuestions = () => {
-    // 1. Fetch authentic questions for this exam (and topic if selected)
+    // 1. Fetch authentic questions strictly for this exam (and topic if selected)
     let pool = CompetitiveService.getQuestions(
       exam.id,
       selectedTopicId !== 'all' ? selectedTopicId : undefined
     );
 
-    // If pool has fewer than requested, broaden to all authentic questions in syllabus bank
+    // 2. Filter strictly through the exam isolation validator
+    pool = pool.filter((q) => CompetitiveService.validateQuestion(q, exam.id));
+
+    // 3. If pool has fewer than requested for a specific topic, broaden to other topics WITHIN THE SAME EXAM ONLY
     if (pool.length < questionCount) {
-      const allSyllabusQuestions = CompetitiveService.getQuestions();
-      const additional = allSyllabusQuestions.filter(
-        (q) => !pool.some((p) => p.id === q.id)
+      const allSameExamQuestions = CompetitiveService.getQuestions(exam.id).filter(
+        (q) => CompetitiveService.validateQuestion(q, exam.id) && !pool.some((p) => p.id === q.id)
       );
-      pool = [...pool, ...additional];
+      pool = [...pool, ...allSameExamQuestions];
     }
+
+    // 4. If still fewer than requested, generate high-yield questions for THIS SPECIFIC EXAM ONLY using its syllabus
+    if (pool.length < questionCount) {
+      const fallbacks = CompetitiveService.generateExamFallbackQuestions(
+        exam,
+        selectedTopicId !== 'all' ? selectedTopicId : undefined,
+        questionCount - pool.length
+      );
+      pool = [...pool, ...fallbacks];
+    }
+
+    // 5. Final validation guard: Hard assert 0 cross-exam contamination
+    pool = pool.filter((q) => q.examId === exam.id && CompetitiveService.validateQuestion(q, exam.id));
 
     // Filter by difficulty if requested
     if (difficulty !== 'all') {
       const filtered = pool.filter((q) => q.difficulty === difficulty);
-      if (filtered.length >= 3) {
+      if (filtered.length >= Math.min(3, questionCount)) {
         pool = filtered;
       }
     }
