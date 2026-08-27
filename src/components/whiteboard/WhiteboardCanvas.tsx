@@ -801,13 +801,14 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    // Mobile GPU Optimization: Clamp DPR to 2 to prevent mobile VRAM & GPU fillrate bottleneck
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = canvas.parentElement?.clientWidth || window.innerWidth;
     const height = canvas.parentElement?.clientHeight || window.innerHeight;
 
-    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
+    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
       isBufferDirtyRef.current = true;
     }
 
@@ -1166,10 +1167,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       return;
     }
 
-    // 120Hz Drawing Strokes
+    // 120Hz Drawing Strokes with Mobile Touch EMA Filter
     const targetStroke = currentStrokeRef.current;
     if (targetStroke) {
       const rawNative = e.nativeEvent as PointerEvent;
+      const isTouch = rawNative.pointerType === 'touch';
       const coalescedEvents = (typeof rawNative.getCoalescedEvents === 'function')
         ? rawNative.getCoalescedEvents()
         : [e];
@@ -1177,15 +1179,39 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
       for (const co of coalescedEvents) {
         const world = screenToWorld(co.clientX, co.clientY);
         const lastPt = targetStroke.points[targetStroke.points.length - 1];
-        if (lastPt && Math.hypot(world.x - lastPt.x, world.y - lastPt.y) < 1.2) {
-          continue; // Skip redundant sub-pixel jitter
+
+        // Mobile touch digitizer jitter filter
+        const minDist = isTouch ? 1.5 : 1.0;
+        if (lastPt && Math.hypot(world.x - lastPt.x, world.y - lastPt.y) < minDist) {
+          continue;
+        }
+
+        // Exponential Moving Average filter on finger touch input
+        let px = world.x;
+        let py = world.y;
+        if (isTouch && lastPt) {
+          px = lastPt.x * 0.25 + world.x * 0.75;
+          py = lastPt.y * 0.25 + world.y * 0.75;
+        }
+
+        const now = Date.now();
+        let pressure = 1;
+        if (props.pressureEnabled) {
+          if (co.pressure && co.pressure > 0 && co.pressure !== 0.5) {
+            pressure = co.pressure;
+          } else if (lastPt) {
+            const dt = Math.max(1, now - (lastPt.time || now));
+            const dist = Math.hypot(px - lastPt.x, py - lastPt.y);
+            const speed = dist / dt;
+            pressure = Math.max(0.4, Math.min(1.4, 1.2 - speed * 0.12));
+          }
         }
 
         targetStroke.points.push({
-          x: world.x,
-          y: world.y,
-          pressure: props.pressureEnabled ? (co.pressure || 0.5) : 1,
-          time: Date.now(),
+          x: px,
+          y: py,
+          pressure,
+          time: now,
         });
       }
     } else if (currentShapeRef.current && dragStartRef.current) {
@@ -1376,10 +1402,14 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full overflow-hidden select-none bg-slate-50 dark:bg-slate-950 will-change-transform transform-gpu"
+      className="relative w-full h-full overflow-hidden select-none bg-slate-50 dark:bg-slate-950 will-change-transform transform-gpu touch-none"
       style={{
         cursor: cursorStyle,
         contain: 'layout paint size',
+        touchAction: 'none',
+        overscrollBehavior: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
       }}
     >
       {/* 120 FPS Hardware-Accelerated Canvas Element */}
@@ -1390,10 +1420,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
         onWheel={handleWheel}
-        className="w-full h-full block touch-none transform-gpu"
+        className="w-full h-full block touch-none transform-gpu select-none"
         style={{
           transform: 'translate3d(0, 0, 0)',
           backfaceVisibility: 'hidden',
+          touchAction: 'none',
         }}
       />
 
