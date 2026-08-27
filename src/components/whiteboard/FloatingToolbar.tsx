@@ -21,6 +21,7 @@ import {
 import { ToolType, PenType, PencilType, EraserType, ShapeType } from '../../types/whiteboard';
 import { ShapeSelector } from './ShapeSelector';
 import { FontPanel } from './FontPanel';
+import { ColorPicker } from './ColorPicker';
 
 interface FloatingToolbarProps {
   activeTool: ToolType;
@@ -146,8 +147,18 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
       {/* 🖌️ Pens & Brushes Popover */}
       {activePopover === 'pens' && (
         <div className="mb-3 p-3 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-2xl backdrop-blur-2xl w-64 space-y-2.5 animate-in fade-in slide-in-from-bottom-2">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Pen & Brush Type
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Pen & Brush Type
+            </div>
+            <button
+              onClick={() => setActivePopover('color')}
+              className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+              title="Open Full Color Palette"
+            >
+              <Palette className="w-3 h-3" />
+              <span>Palette</span>
+            </button>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             {[
@@ -192,42 +203,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
 
       {/* 🎨 Color Picker Popover */}
       {activePopover === 'color' && (
-        <div className="mb-3 p-4 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-2xl backdrop-blur-2xl w-64 space-y-3 animate-in fade-in slide-in-from-bottom-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Select Color
-            </span>
-            <input
-              type="color"
-              value={props.color}
-              onChange={(e) => props.onColorChange(e.target.value)}
-              className="w-6 h-6 rounded-full border-0 p-0 cursor-pointer bg-transparent"
-              title="Custom Hex Color"
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {PALETTE_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => {
-                  props.onColorChange(c);
-                  setActivePopover(null);
-                }}
-                className="w-full h-8 rounded-xl flex items-center justify-center border border-slate-200 dark:border-slate-700 transition-transform hover:scale-105 active:scale-95 shadow-xs"
-                style={{ backgroundColor: c }}
-              >
-                {props.color.toLowerCase() === c.toLowerCase() && (
-                  <Check
-                    className={`w-4 h-4 ${
-                      c === '#ffffff' ? 'text-slate-900' : 'text-white'
-                    }`}
-                  />
-                )}
-              </button>
-            ))}
-          </div>
+        <div className="mb-3 animate-in fade-in slide-in-from-bottom-2">
+          <ColorPicker
+            currentColor={props.color}
+            onColorChange={(newColor) => {
+              props.onColorChange(newColor);
+            }}
+            onClose={() => setActivePopover(null)}
+          />
         </div>
       )}
 
