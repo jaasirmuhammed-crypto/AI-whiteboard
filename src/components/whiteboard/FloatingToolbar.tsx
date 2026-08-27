@@ -117,7 +117,16 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
 
   if (isMobileCollapsed) {
     return (
-      <div className="fixed bottom-4 right-4 z-40 sm:hidden">
+      <div className="fixed bottom-4 right-4 z-40 sm:hidden flex items-center gap-2">
+        {props.onClear && (
+          <button
+            onClick={props.onClear}
+            className="p-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-2xl shadow-rose-600/40 flex items-center justify-center border-2 border-white dark:border-slate-800 transition-transform active:scale-95"
+            title="Clear Whiteboard"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
         <button
           onClick={() => setIsMobileCollapsed(false)}
           className="p-3.5 rounded-full bg-indigo-600 text-white shadow-2xl shadow-indigo-600/50 flex items-center justify-center border-2 border-white dark:border-slate-800"

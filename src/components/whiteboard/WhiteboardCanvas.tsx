@@ -1326,7 +1326,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     if (finalStroke && finalStroke.points.length > 1) {
       currentStrokeRef.current = null;
 
-      if (props.shapeAutoDetect) {
+      // On mobile devices, disable auto-correcting strokes into lines or shapes so freehand drawing is 100% natural
+      const isMobileScreen = typeof window !== 'undefined' && (
+        window.innerWidth < 768 ||
+        ('ontouchstart' in window && window.innerWidth < 1024)
+      );
+
+      if (props.shapeAutoDetect && !isMobileScreen) {
         const detected = detectSmartShape(finalStroke.points);
         if (detected && detected.shapeType) {
           const detectedShapeElement: ShapeElement = {
