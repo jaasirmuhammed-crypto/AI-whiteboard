@@ -40,6 +40,7 @@ import { ShortcutsModal } from './components/whiteboard/ShortcutsModal';
 import { BackgroundSelector } from './components/whiteboard/BackgroundSelector';
 import { CollaborationModal } from './components/whiteboard/CollaborationModal';
 import { VersionHistoryModal } from './components/whiteboard/VersionHistoryModal';
+import { UndoHistoryTimelineModal } from './components/whiteboard/UndoHistoryTimelineModal';
 import { LayersPanelModal } from './components/whiteboard/LayersPanelModal';
 import { TemplatesModal } from './components/whiteboard/TemplatesModal';
 
@@ -54,9 +55,11 @@ import { VoiceAnnotationBar } from './components/whiteboard/VoiceAnnotationBar';
 
 // Common Core Modals & Payments
 import { ExportHubModal } from './components/common/ExportHubModal';
+import { AnalyticsModal } from './components/common/AnalyticsModal';
 import { QuotaUsageModal } from './components/common/QuotaUsageModal';
 import { TokensExhaustedModal } from './components/common/TokensExhaustedModal';
 import { OnboardingTourModal } from './components/common/OnboardingTourModal';
+import { telemetryService } from './services/telemetryService';
 
 // Study Hub
 import { StudyMaterialsHub } from './components/study/StudyMaterialsHub';
@@ -206,6 +209,8 @@ const MainAppContent: React.FC = () => {
   const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
   const [clearModalOpen, setClearModalOpen] = useState(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+  const [timelineHistoryOpen, setTimelineHistoryOpen] = useState(false);
+  const [analyticsModalOpen, setAnalyticsModalOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [ocrModalOpen, setOcrModalOpen] = useState(false);
   const [exportHubOpen, setExportHubOpen] = useState(false);
@@ -219,6 +224,19 @@ const MainAppContent: React.FC = () => {
   const [quotaModalOpen, setQuotaModalOpen] = useState(false);
   const [tokensExhaustedModalOpen, setTokensExhaustedModalOpen] = useState(false);
   const [onboardingTourOpen, setOnboardingTourOpen] = useState(false);
+
+  // Global Keyboard Shortcuts (Press '?' to open shortcuts help)
+  useEffect(() => {
+    const handleGlobalShortcuts = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+      if (e.key === '?' || (e.shiftKey && e.key === '/') || e.key === 'F1') {
+        e.preventDefault();
+        setShortcutsModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalShortcuts);
+    return () => window.removeEventListener('keydown', handleGlobalShortcuts);
+  }, []);
 
   // Track when upgrade / quota modals are viewed
   useEffect(() => {
@@ -641,6 +659,7 @@ const MainAppContent: React.FC = () => {
               onOpenTutorial={() => setOnboardingTourOpen(true)}
               onOpenQuota={() => (isPremium ? setQuotaModalOpen(true) : setTokensExhaustedModalOpen(true))}
               onOpenCustomization={() => setOutputCustomizationOpen(true)}
+              onOpenAnalytics={() => setAnalyticsModalOpen(true)}
               isMultiplayerActive={isMultiplayerActive}
               quotaRemaining={isPremium ? 9999 : Math.max(0, quotaState.dailyGenerationsAllowed - quotaState.generationsUsedToday)}
             />
@@ -748,6 +767,7 @@ const MainAppContent: React.FC = () => {
               onRedo={() => canvasRef.current?.redo()}
               onClear={() => setClearModalOpen(true)}
               onImageUpload={handleImageUpload}
+              onOpenTimelineHistory={() => setTimelineHistoryOpen(true)}
               scale={scale}
               onZoomIn={() => setScale((s) => Math.min(4, s + 0.2))}
               onZoomOut={() => setScale((s) => Math.max(0.25, s - 0.2))}
@@ -802,6 +822,28 @@ const MainAppContent: React.FC = () => {
         onClose={() => setShortcutsModalOpen(false)}
       />
 
+      {/* Undo History Visual Timeline Modal */}
+      <UndoHistoryTimelineModal
+        isOpen={timelineHistoryOpen}
+        onClose={() => setTimelineHistoryOpen(false)}
+        history={canvasRef.current?.getHistory ? canvasRef.current.getHistory() : [currentProject?.elements || []]}
+        currentIndex={canvasRef.current?.getHistoryIndex ? canvasRef.current.getHistoryIndex() : 0}
+        onJumpToIndex={(idx) => canvasRef.current?.jumpToHistoryIndex(idx)}
+      />
+
+      {/* Canvas Performance & Telemetry Diagnostics Modal */}
+      <AnalyticsModal
+        isOpen={analyticsModalOpen}
+        onClose={() => setAnalyticsModalOpen(false)}
+        telemetry={telemetry}
+        smoothingLevel={smoothingLevel}
+        onSmoothingChange={setSmoothingLevel}
+        pressureEnabled={pressureEnabled}
+        onTogglePressure={setPressureEnabled}
+        shapeAutoDetect={shapeAutoDetect}
+        onToggleShapeAutoDetect={setShapeAutoDetect}
+      />
+
       {/* OCR Handwriting Pre-Recognition Review Modal */}
       <OCRReviewModal
         isOpen={ocrModalOpen}
@@ -854,6 +896,7 @@ const MainAppContent: React.FC = () => {
         studyPackage={activeStudyMaterials}
         canvasSnapshot={canvasRef.current?.getSnapshotDataUrl()}
         canvasSvgString={canvasRef.current?.getSVGString()}
+        rawCanvasElements={currentProject?.elements || []}
       />
 
       {/* Output Customization Modal */}

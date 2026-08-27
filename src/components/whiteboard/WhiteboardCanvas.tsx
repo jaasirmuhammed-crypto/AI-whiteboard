@@ -4,7 +4,7 @@ import {
   StrokeElement, 
   ShapeElement, 
   TextElement, 
-  StickyElement,
+  StickyElement, 
   StrokePoint, 
   ToolType, 
   PenType, 
@@ -17,9 +17,9 @@ import {
   LineSmoothingLevel
 } from '../../types/whiteboard';
 import { useTheme } from '../../context/ThemeContext';
-import { detectSmartShape } from '../../utils/strokeMath';
+import { detectSmartShape, smoothStrokePoints, getStrokeBounds, BoundingBox } from '../../utils/strokeMath';
 import { elementsToSVG } from '../../utils/svgExportUtil';
-import { Trash2, Move, Check } from 'lucide-react';
+import { Trash2, Move, Check, Sparkles } from 'lucide-react';
 
 export interface WhiteboardCanvasRef {
   getSnapshotDataUrl: () => string;
@@ -29,6 +29,9 @@ export interface WhiteboardCanvasRef {
   canUndo: boolean;
   canRedo: boolean;
   getSVGString: () => string;
+  getHistory: () => WhiteboardElement[][];
+  getHistoryIndex: () => number;
+  jumpToHistoryIndex: (index: number) => void;
 }
 
 interface WhiteboardCanvasProps {
@@ -79,6 +82,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
   const currentShapeRef = useRef<ShapeElement | null>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const isBufferDirtyRef = useRef(true);
+  const dirtyBoundsRef = useRef<BoundingBox | null>(null);
   const animFrameIdRef = useRef<number | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -184,24 +188,14 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     }
   }, [canRedo, historyIndex, history, props]);
 
-  // Imperative handle for parent components
-  useImperativeHandle(ref, () => ({
-    getSnapshotDataUrl: () => {
-      return canvasRef.current?.toDataURL('image/png') || '';
-    },
-    getSVGString: () => {
-      const w = canvasRef.current?.width || 1920;
-      const h = canvasRef.current?.height || 1080;
-      return elementsToSVG(props.elements, w, h);
-    },
-    clearCanvas: () => {
-      pushToHistory([]);
-    },
-    undo: handleUndo,
-    redo: handleRedo,
-    canUndo,
-    canRedo,
-  }), [props.elements, pushToHistory, handleUndo, handleRedo, canUndo, canRedo]);
+  const jumpToHistoryIndex = useCallback((targetIndex: number) => {
+    if (targetIndex >= 0 && targetIndex < history.length) {
+      setHistoryIndex(targetIndex);
+      const targetElements = history[targetIndex];
+      isBufferDirtyRef.current = true;
+      props.onElementsChange(targetElements);
+    }
+  }, [history, props]);
 
   // Multi-Touch Pinch-to-Zoom & Two-Finger Pan Engine
   const touchStateRef = useRef<{
@@ -340,7 +334,10 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
     canUndo,
     canRedo,
     getSVGString,
-  }), [handleUndo, handleRedo, canUndo, canRedo, pushToHistory, getSVGString]);
+    getHistory: () => history,
+    getHistoryIndex: () => historyIndex,
+    jumpToHistoryIndex,
+  }), [handleUndo, handleRedo, canUndo, canRedo, pushToHistory, getSVGString, history, historyIndex, jumpToHistoryIndex]);
 
   // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Delete)
   useEffect(() => {
@@ -1289,7 +1286,15 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         }
       }
 
-      pushToHistory([...props.elements, finalStroke]);
+      // Smooth stroke with Catmull-Rom spline curves
+      const smoothedPoints = smoothStrokePoints(finalStroke.points, props.smoothingLevel || 'medium');
+      const smoothedStroke: StrokeElement = {
+        ...finalStroke,
+        points: smoothedPoints,
+        smoothed: true,
+      };
+
+      pushToHistory([...props.elements, smoothedStroke]);
     } else {
       currentStrokeRef.current = null;
     }

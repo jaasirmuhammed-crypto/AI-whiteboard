@@ -1,4 +1,5 @@
-﻿import { WhiteboardProject } from '../types/user';
+import { WhiteboardProject } from '../types/user';
+import { offlineStorageService } from './offlineStorageService';
 
 const STORAGE_KEY = 'ai_whiteboard_projects_db';
 
@@ -14,20 +15,39 @@ export class StorageService {
     }
   }
 
+  public static async getProjectsAsync(): Promise<WhiteboardProject[]> {
+    return await offlineStorageService.getProjects();
+  }
+
   public static saveProject(project: WhiteboardProject): void {
     const projects = this.getProjects();
     const index = projects.findIndex(p => p.id === project.id);
+    const updated = {
+      ...project,
+      updatedAt: new Date().toISOString(),
+      createdAt: project.createdAt || new Date().toISOString(),
+    };
+
     if (index >= 0) {
-      projects[index] = { ...project, updatedAt: new Date().toISOString() };
+      projects[index] = updated;
     } else {
-      projects.unshift({ ...project, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      projects.unshift(updated);
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    } catch (e) {
+      console.warn('LocalStorage limit exceeded, relying on IndexedDB:', e);
+    }
+
+    // Also persist full fidelity to IndexedDB asynchronously
+    offlineStorageService.saveProject(updated).catch(console.error);
   }
 
   public static deleteProject(projectId: string): void {
     const projects = this.getProjects().filter(p => p.id !== projectId);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    offlineStorageService.deleteProject(projectId).catch(console.error);
   }
 
   public static getProjectById(projectId: string): WhiteboardProject | undefined {

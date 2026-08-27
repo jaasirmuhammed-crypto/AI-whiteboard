@@ -9,7 +9,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   className = '', 
   variant = 'rectangular' 
 }) => {
-  const baseClasses = 'bg-slate-200/80 dark:bg-slate-800/80 relative overflow-hidden animate-pulse';
+  const baseClasses = 'bg-slate-200/80 dark:bg-slate-850 relative overflow-hidden animate-pulse';
   
   const variantClasses = {
     rectangular: 'rounded-2xl',
@@ -20,7 +20,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   return (
     <div className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
       {/* Shimmer gradient effect */}
-      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 dark:via-white/5 to-transparent animate-[shimmer_1.6s_infinite]" />
+      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 dark:via-white/5 to-transparent animate-[shimmer_1.6s_infinite]" />
     </div>
   );
 };
@@ -37,6 +37,33 @@ export const CardSkeleton: React.FC = () => {
         <Skeleton className="h-8 flex-1 rounded-xl" />
         <Skeleton className="h-8 w-8 rounded-xl" />
       </div>
+    </div>
+  );
+};
+
+export const WhiteboardCanvasSkeleton: React.FC = () => {
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center p-6 space-y-4 bg-slate-50/50 dark:bg-slate-950/50 backdrop-blur-sm">
+      <Skeleton className="w-16 h-16 rounded-3xl" />
+      <Skeleton className="w-64 h-6 rounded-xl" />
+      <Skeleton className="w-48 h-4 rounded-lg" />
+    </div>
+  );
+};
+
+export const StudyPackageSkeleton: React.FC = () => {
+  return (
+    <div className="max-w-5xl mx-auto p-6 space-y-6 animate-pulse">
+      <div className="space-y-3">
+        <Skeleton className="h-8 w-1/3 rounded-xl" />
+        <Skeleton className="h-4 w-2/3 rounded-lg" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Skeleton className="h-48 rounded-3xl" />
+        <Skeleton className="h-48 rounded-3xl" />
+        <Skeleton className="h-48 rounded-3xl" />
+      </div>
+      <Skeleton className="h-64 w-full rounded-3xl" />
     </div>
   );
 };

@@ -1,26 +1,40 @@
 import pptxgen from 'pptxgenjs';
 import jsPDF from 'jspdf';
-import { PresentationData, MCQQuizData, MindMapData } from '../types/studyMaterial';
+import { PresentationData, MCQQuizData, MindMapData, StudyMaterialsPackage } from '../types/studyMaterial';
+import { WhiteboardProject } from '../types/user';
+import { WhiteboardElement } from '../types/whiteboard';
+import { elementsToSVG } from '../utils/svgExportUtil';
+
+export type PPTXTheme = 'indigo' | 'midnight' | 'emerald' | 'amber';
 
 export class ExportService {
   /**
-   * Export Presentation to a real .pptx PowerPoint file
+   * Export Presentation to a real .pptx PowerPoint file with custom theme selection
    */
-  public static async exportToPPTX(presentation: PresentationData, fileName?: string): Promise<void> {
+  public static async exportToPPTX(
+    presentation: PresentationData,
+    fileName?: string,
+    theme: PPTXTheme = 'indigo'
+  ): Promise<void> {
     const pptx = new pptxgen();
     pptx.layout = 'LAYOUT_16x9';
     pptx.author = 'AI Whiteboard — Built by SAFA Developers';
-    pptx.company = 'AI Whiteboard';
+    pptx.company = 'AI Whiteboard Suite';
     pptx.title = presentation.title;
 
-    // Slide theme colors
-    const primaryColor = '3730A3'; // Indigo 800
-    const textColor = '1E293B'; // Slate 800
-    const lightBg = 'F8FAFC'; // Slate 50
+    // Theme Color Palettes
+    const themes = {
+      indigo: { primary: '3730A3', accent: '4F46E5', text: '1E293B', lightBg: 'F8FAFC', cardBg: 'FFFFFF', border: 'E2E8F0' },
+      midnight: { primary: '38BDF8', accent: '0284C7', text: 'F1F5F9', lightBg: '0F172A', cardBg: '1E293B', border: '334155' },
+      emerald: { primary: '065F46', accent: '059669', text: '064E3B', lightBg: 'F0FDF4', cardBg: 'FFFFFF', border: 'BBF7D0' },
+      amber: { primary: '92400E', accent: 'D97706', text: '451A03', lightBg: 'FFFBEB', cardBg: 'FFFFFF', border: 'FDE68A' },
+    };
+
+    const palette = themes[theme] || themes.indigo;
 
     presentation.slides.forEach((slideData) => {
       const slide = pptx.addSlide();
-      slide.background = { color: lightBg };
+      slide.background = { color: palette.lightBg };
 
       if (slideData.layout === 'title') {
         // Title Slide Layout
@@ -31,7 +45,7 @@ export class ExportService {
           h: 1.8,
           fontSize: 38,
           bold: true,
-          color: primaryColor,
+          color: palette.primary,
           fontFace: 'Arial',
         });
 
@@ -64,7 +78,7 @@ export class ExportService {
           h: 0.8,
           fontSize: 26,
           bold: true,
-          color: primaryColor,
+          color: palette.primary,
         });
 
         // Left Box
@@ -74,8 +88,8 @@ export class ExportService {
             y: 1.6,
             w: 5.6,
             h: 4.8,
-            fill: { color: 'FFFFFF' },
-            line: { color: 'E2E8F0', width: 1 },
+            fill: { color: palette.cardBg },
+            line: { color: palette.border, width: 1 },
           });
 
           slide.addText(slideData.leftPoints.join('\n\n'), {
@@ -84,7 +98,7 @@ export class ExportService {
             w: 5.2,
             h: 4.4,
             fontSize: 14,
-            color: textColor,
+            color: palette.text,
             valign: 'top',
           });
         }
@@ -96,8 +110,8 @@ export class ExportService {
             y: 1.6,
             w: 5.6,
             h: 4.8,
-            fill: { color: 'FFFFFF' },
-            line: { color: 'E2E8F0', width: 1 },
+            fill: { color: palette.cardBg },
+            line: { color: palette.border, width: 1 },
           });
 
           slide.addText(slideData.rightPoints.join('\n\n'), {
@@ -106,7 +120,7 @@ export class ExportService {
             w: 5.2,
             h: 4.4,
             fontSize: 14,
-            color: textColor,
+            color: palette.text,
             valign: 'top',
           });
         }
@@ -119,7 +133,7 @@ export class ExportService {
           h: 0.8,
           fontSize: 26,
           bold: true,
-          color: primaryColor,
+          color: palette.primary,
         });
 
         const points = slideData.bulletPoints || [];
@@ -132,12 +146,17 @@ export class ExportService {
               w: '85%',
               h: 4.5,
               fontSize: 16,
-              color: textColor,
+              color: palette.text,
               lineSpacing: 28,
               valign: 'top',
             }
           );
         }
+      }
+
+      // Add Presenter Notes
+      if (slideData.notes) {
+        slide.addNotes(slideData.notes);
       }
 
       // Add Footer
@@ -180,32 +199,27 @@ export class ExportService {
     presentation.slides.forEach((slide, idx) => {
       if (idx > 0) doc.addPage();
 
-      // Background
-      doc.setFillColor(248, 250, 252); // Slate 50
+      doc.setFillColor(248, 250, 252);
       doc.rect(0, 0, pageWidth, pageHeight, 'F');
 
-      // Top Accent Line
-      doc.setFillColor(79, 70, 229); // Indigo 600
+      doc.setFillColor(79, 70, 229);
       doc.rect(0, 0, pageWidth, 5, 'F');
 
-      // Slide Title
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(22);
-      doc.setTextColor(55, 48, 163); // Indigo 800
+      doc.setTextColor(55, 48, 163);
       doc.text(slide.title, margin, 25);
 
       if (slide.subtitle) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(14);
-        doc.setTextColor(100, 116, 139); // Slate 500
+        doc.setTextColor(100, 116, 139);
         doc.text(slide.subtitle, margin, 35);
       }
 
-      // Slide Body Content
-      let yPos = slide.subtitle ? 50 : 40;
+      const yPos = slide.subtitle ? 50 : 40;
 
       if (slide.layout === 'split') {
-        // Left Column (Advantages)
         if (slide.leftPoints && slide.leftPoints.length > 0) {
           doc.setFillColor(255, 255, 255);
           doc.roundedRect(margin, yPos, 120, 120, 3, 3, 'F');
@@ -220,7 +234,6 @@ export class ExportService {
           });
         }
 
-        // Right Column (Disadvantages)
         if (slide.rightPoints && slide.rightPoints.length > 0) {
           doc.setFillColor(255, 255, 255);
           doc.roundedRect(150, yPos, 120, 120, 3, 3, 'F');
@@ -235,7 +248,6 @@ export class ExportService {
           });
         }
       } else {
-        // Bullets / Diagram Layout
         doc.setFillColor(255, 255, 255);
         doc.roundedRect(margin, yPos, pageWidth - margin * 2, 125, 4, 4, 'F');
 
@@ -262,10 +274,9 @@ export class ExportService {
         });
       }
 
-      // Footer
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(9);
-      doc.setTextColor(148, 163, 184); // Slate 400
+      doc.setTextColor(148, 163, 184);
       doc.text(`AI Whiteboard — ${presentation.title}`, margin, pageHeight - 12);
       doc.text(`Slide ${slide.slideNumber} of ${presentation.slides.length} • Built by SAFA Developers`, pageWidth - margin - 80, pageHeight - 12);
     });
@@ -282,7 +293,6 @@ export class ExportService {
     const margin = 20;
     let y = margin;
 
-    // Header
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
     doc.setTextColor(79, 70, 229);
@@ -297,7 +307,6 @@ export class ExportService {
     doc.text('AI Whiteboard — Built by SAFA Developers', margin, y);
     y += 15;
 
-    // Questions
     quiz.questions.forEach((q, idx) => {
       if (y > 250) {
         doc.addPage();
@@ -307,12 +316,11 @@ export class ExportService {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(30, 41, 59);
-      const qText = `${idx + 1}. ${q.question} [${q.difficulty.toUpperCase()}]`;
+      const qText = `${idx + 1}. ${q.question} [${(q.difficulty || 'Medium').toUpperCase()}]`;
       const splitQ = doc.splitTextToSize(qText, 170);
       doc.text(splitQ, margin, y);
       y += splitQ.length * 6 + 4;
 
-      // Options
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       q.options.forEach((opt, optIdx) => {
@@ -322,7 +330,6 @@ export class ExportService {
         y += 6;
       });
 
-      // Answer & Explanation
       y += 2;
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(9);
@@ -342,7 +349,7 @@ export class ExportService {
   }
 
   /**
-   * Export study notes & slides as formatted Microsoft Word document (.doc / .docx)
+   * Export study notes & slides as formatted Microsoft Word document (.doc)
    */
   public static exportToWordDoc(packageData: { topic: string; summary: string; presentation?: any; quiz?: any; extractedKeywords?: string[] }, fileName?: string): void {
     const title = packageData.topic || 'Study Notes';
@@ -384,7 +391,7 @@ export class ExportService {
             <div class="slide-card">
               <h3>Slide ${idx + 1}: ${s.title}</h3>
               ${s.subtitle ? `<p><em>${s.subtitle}</em></p>` : ''}
-              ${s.bullets ? `<ul>${s.bullets.map((b: string) => `<li>${b}</li>`).join('')}</ul>` : ''}
+              ${s.bullets || s.bulletPoints ? `<ul>${(s.bullets || s.bulletPoints).map((b: string) => `<li>${b}</li>`).join('')}</ul>` : ''}
               ${s.notes ? `<p style="color: #64748b; font-size: 10pt;"><strong>Presenter Notes:</strong> ${s.notes}</p>` : ''}
             </div>
           `).join('')}
@@ -436,7 +443,8 @@ export class ExportService {
       packageData.presentation.slides.forEach((s: any, idx: number) => {
         md += `### Slide ${idx + 1}: ${s.title}\n`;
         if (s.subtitle) md += `*${s.subtitle}*\n\n`;
-        if (s.bullets) s.bullets.forEach((b: string) => { md += `- ${b}\n`; });
+        const bullets = s.bullets || s.bulletPoints || [];
+        bullets.forEach((b: string) => { md += `- ${b}\n`; });
         if (s.notes) md += `\n> **Notes:** ${s.notes}\n`;
         md += `\n---\n\n`;
       });
@@ -445,7 +453,7 @@ export class ExportService {
     if (packageData.quiz) {
       md += `## MCQ Practice Quiz\n\n`;
       packageData.quiz.questions.forEach((q: any, idx: number) => {
-        md += `**Q${idx + 1}. ${q.question}** [${q.difficulty.toUpperCase()}]\n`;
+        md += `**Q${idx + 1}. ${q.question}** [${(q.difficulty || 'Medium').toUpperCase()}]\n`;
         const letters = ['A', 'B', 'C', 'D'];
         q.options.forEach((opt: string, optI: number) => {
           md += `- (${letters[optI]}) ${opt}\n`;
@@ -463,6 +471,125 @@ export class ExportService {
     a.download = `${safeName}_notes.md`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Export SVG Vector File
+   */
+  public static exportToSVGFile(elements: WhiteboardElement[], fileName: string, width: number = 1920, height: number = 1080): void {
+    const svgStr = elementsToSVG(elements, width, height);
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeName = (fileName || 'whiteboard_vector').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    a.download = `${safeName}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * High-Resolution PNG Canvas Snapshot Export (Supports 1x, 2x, 4x scaling with optional transparency)
+   */
+  public static async exportHighResPNG(
+    elements: WhiteboardElement[],
+    fileName: string,
+    scaleFactor: number = 2,
+    isTransparent: boolean = false
+  ): Promise<void> {
+    const offscreen = document.createElement('canvas');
+    const baseWidth = 1920;
+    const baseHeight = 1080;
+    offscreen.width = baseWidth * scaleFactor;
+    offscreen.height = baseHeight * scaleFactor;
+
+    const ctx = offscreen.getContext('2d');
+    if (!ctx) return;
+
+    ctx.scale(scaleFactor, scaleFactor);
+
+    if (!isTransparent) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, baseWidth, baseHeight);
+    }
+
+    // Render elements
+    elements.forEach((el) => {
+      if (el.type === 'stroke') {
+        const stroke = el as any;
+        if (!stroke.points || stroke.points.length === 0) return;
+        ctx.save();
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.width;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.globalAlpha = stroke.opacity || 1;
+
+        if (stroke.points.length === 1) {
+          ctx.beginPath();
+          ctx.arc(stroke.points[0].x, stroke.points[0].y, stroke.width / 2, 0, Math.PI * 2);
+          ctx.fillStyle = stroke.color;
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+          for (let i = 1; i < stroke.points.length - 1; i++) {
+            const midX = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
+            const midY = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, midX, midY);
+          }
+          const last = stroke.points[stroke.points.length - 1];
+          const prev = stroke.points[stroke.points.length - 2];
+          ctx.quadraticCurveTo(prev.x, prev.y, last.x, last.y);
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (el.type === 'shape') {
+        const shape = el as any;
+        ctx.save();
+        ctx.strokeStyle = shape.color;
+        ctx.lineWidth = shape.strokeWidth || 2;
+        ctx.globalAlpha = shape.opacity || 1;
+        if (shape.shapeType === 'rectangle') {
+          if (shape.fillColor) { ctx.fillStyle = shape.fillColor; ctx.fillRect(shape.x, shape.y, shape.width, shape.height); }
+          ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+        } else if (shape.shapeType === 'circle') {
+          ctx.beginPath();
+          ctx.ellipse(shape.x + shape.width / 2, shape.y + shape.height / 2, Math.abs(shape.width / 2), Math.abs(shape.height / 2), 0, 0, Math.PI * 2);
+          if (shape.fillColor) { ctx.fillStyle = shape.fillColor; ctx.fill(); }
+          ctx.stroke();
+        } else if (shape.shapeType === 'line') {
+          ctx.beginPath();
+          ctx.moveTo(shape.x, shape.y);
+          ctx.lineTo(shape.x + shape.width, shape.y + shape.height);
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (el.type === 'text') {
+        const text = el as any;
+        ctx.save();
+        ctx.font = `${text.fontSize || 20}px sans-serif`;
+        ctx.fillStyle = text.color;
+        ctx.fillText(text.text, text.x, text.y);
+        ctx.restore();
+      }
+    });
+
+    const dataUrl = offscreen.toDataURL('image/png');
+    this.downloadCanvasImage(dataUrl, fileName);
+  }
+
+  /**
+   * Batch export multiple whiteboard projects into a consolidated JSON/data bundle
+   */
+  public static exportBatchProjects(projects: WhiteboardProject[], bundleName: string = 'whiteboard_backup_bundle'): void {
+    const bundleData = {
+      exportDate: new Date().toISOString(),
+      generator: 'AI Whiteboard • Built by SAFA Developers',
+      totalProjects: projects.length,
+      projects,
+    };
+    this.exportToJSON(bundleData, bundleName);
   }
 
   /**

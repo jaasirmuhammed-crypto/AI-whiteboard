@@ -53,6 +53,7 @@ interface TopControlBarProps {
   onOpenCustomization?: () => void;
   onOpenAIWritingAssistant?: () => void;
   onToggleVoiceAnnotation?: () => void;
+  onOpenAnalytics?: () => void;
   isVoiceAnnotationActive?: boolean;
   isMultiplayerActive?: boolean;
   quotaRemaining?: number;
@@ -79,6 +80,7 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
   onOpenCustomization,
   onOpenAIWritingAssistant,
   onToggleVoiceAnnotation,
+  onOpenAnalytics,
   isVoiceAnnotationActive = false,
   isMultiplayerActive = false,
   quotaRemaining = 5,
@@ -313,6 +315,17 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
             title="Customize PPT Themes & MCQ Difficulty"
           >
             <Sliders className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Canvas Performance & Telemetry */}
+        {onOpenAnalytics && (
+          <button
+            onClick={onOpenAnalytics}
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+            title="Canvas Performance Telemetry & Engine Settings"
+          >
+            <Activity className="w-4 h-4 text-emerald-500" />
           </button>
         )}
 

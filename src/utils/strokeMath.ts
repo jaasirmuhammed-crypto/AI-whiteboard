@@ -1,45 +1,164 @@
 import { StrokePoint, ShapeType } from '../types/whiteboard';
 
+export interface BoundingBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+}
+
 /**
- * Catmull-Rom or Quadratic interpolation for silky smooth stroke rendering
+ * Computes tight axis-aligned bounding box for stroke points with padding
  */
-export function smoothStrokePoints(points: StrokePoint[], smoothingLevel: 'none' | 'medium' | 'high'): StrokePoint[] {
-  if (points.length < 3 || smoothingLevel === 'none') {
+export function getStrokeBounds(points: StrokePoint[], strokeWidth: number = 4, padding: number = 8): BoundingBox {
+  if (!points || points.length === 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+
+  const extra = strokeWidth + padding;
+  minX = Math.floor(minX - extra);
+  minY = Math.floor(minY - extra);
+  maxX = Math.ceil(maxX + extra);
+  maxY = Math.ceil(maxY + extra);
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
+/**
+ * High-precision Catmull-Rom Spline Curve Interpolation
+ * Generates continuous, C1-smooth curves that pass directly through control points
+ */
+export function getCatmullRomSplinePoints(
+  points: StrokePoint[],
+  tension: number = 0.5,
+  segments: number = 4
+): StrokePoint[] {
+  if (points.length < 3) return points;
+
+  const result: StrokePoint[] = [points[0]];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = i > 0 ? points[i - 1] : points[0];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = i < points.length - 2 ? points[i + 2] : p2;
+
+    const pr1 = p1.pressure ?? 0.5;
+    const pr2 = p2.pressure ?? 0.5;
+
+    for (let s = 1; s <= segments; s++) {
+      const t = s / segments;
+      const t2 = t * t;
+      const t3 = t2 * t;
+
+      // Catmull-Rom Basis functions with tension parameter
+      const f0 = -tension * t3 + 2 * tension * t2 - tension * t;
+      const f1 = (2 - tension) * t3 + (tension - 3) * t2 + 1;
+      const f2 = (tension - 2) * t3 + (3 - 2 * tension) * t2 + tension * t;
+      const f3 = tension * t3 - tension * t2;
+
+      const x = f0 * p0.x + f1 * p1.x + f2 * p2.x + f3 * p3.x;
+      const y = f0 * p0.y + f1 * p1.y + f2 * p2.y + f3 * p3.y;
+      const pressure = pr1 + (pr2 - pr1) * t;
+
+      result.push({ x, y, pressure });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Multi-pass Stroke Smoothing with adaptive velocity dampening
+ */
+export function smoothStrokePoints(
+  points: StrokePoint[],
+  smoothingLevel: 'none' | 'medium' | 'high'
+): StrokePoint[] {
+  if (!points || points.length < 3 || smoothingLevel === 'none') {
     return points;
   }
 
-  const smoothed: StrokePoint[] = [];
-  smoothed.push(points[0]);
+  // High smoothing uses full Catmull-Rom spline with Chaikin post-filtering
+  if (smoothingLevel === 'high') {
+    const spline = getCatmullRomSplinePoints(points, 0.45, 3);
+    const refined: StrokePoint[] = [spline[0]];
+    for (let i = 1; i < spline.length - 1; i++) {
+      const prev = spline[i - 1];
+      const curr = spline[i];
+      const next = spline[i + 1];
+      refined.push({
+        x: 0.2 * prev.x + 0.6 * curr.x + 0.2 * next.x,
+        y: 0.2 * prev.y + 0.6 * curr.y + 0.2 * next.y,
+        pressure: curr.pressure,
+      });
+    }
+    refined.push(spline[spline.length - 1]);
+    return refined;
+  }
 
-  const iterations = smoothingLevel === 'high' ? 2 : 1;
+  // Medium smoothing: Chaikin algorithm
+  const current = [...points];
+  const nextRound: StrokePoint[] = [current[0]];
+  for (let i = 1; i < current.length - 1; i++) {
+    const prev = current[i - 1];
+    const curr = current[i];
+    const next = current[i + 1];
 
-  let current = [...points];
-
-  for (let it = 0; it < iterations; it++) {
-    const nextRound: StrokePoint[] = [current[0]];
-    for (let i = 1; i < current.length - 1; i++) {
-      const prev = current[i - 1];
-      const curr = current[i];
-      const next = current[i + 1];
-
-      // Moving average / Chaikin smoothing
-      const p1: StrokePoint = {
+    nextRound.push(
+      {
         x: 0.75 * curr.x + 0.25 * prev.x,
         y: 0.75 * curr.y + 0.25 * prev.y,
         pressure: curr.pressure,
-      };
-      const p2: StrokePoint = {
+      },
+      {
         x: 0.75 * curr.x + 0.25 * next.x,
         y: 0.75 * curr.y + 0.25 * next.y,
         pressure: (curr.pressure || 0.5) * 0.5 + (next.pressure || 0.5) * 0.5,
-      };
-      nextRound.push(p1, p2);
-    }
-    nextRound.push(current[current.length - 1]);
-    current = nextRound;
+      }
+    );
   }
+  nextRound.push(current[current.length - 1]);
+  return nextRound;
+}
 
-  return current;
+/**
+ * Stroke speed and velocity estimator for pressure simulation on non-stylus pointers
+ */
+export function estimatePressureFromVelocity(
+  p1: { x: number; y: number; time?: number },
+  p2: { x: number; y: number; time?: number },
+  prevPressure: number = 0.5
+): number {
+  const dt = (p2.time || Date.now()) - (p1.time || Date.now() - 16);
+  const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  const speed = dist / Math.max(1, dt); // pixels per ms
+
+  // Faster movement => thinner line (lower pressure); Slower => thicker (higher pressure)
+  const targetPressure = Math.min(1.0, Math.max(0.2, 1.0 - speed * 0.25));
+  return prevPressure * 0.7 + targetPressure * 0.3;
 }
 
 /**
@@ -55,17 +174,17 @@ export function detectSmartShape(points: StrokePoint[]): {
   height: number;
   confidence: number;
 } | null {
-  if (points.length < 6) return null;
+  if (!points || points.length < 6) return null;
 
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   let totalLength = 0;
 
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
-    minX = Math.min(minX, p.x);
-    maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y);
-    maxY = Math.max(maxY, p.y);
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
 
     if (i > 0) {
       const prev = points[i - 1];
@@ -80,7 +199,6 @@ export function detectSmartShape(points: StrokePoint[]): {
   const startEndDist = Math.hypot(last.x - first.x, last.y - first.y);
 
   // 1. ARROW GESTURE DETECTION
-  // Check if stroke ends with an arrowhead (hook or V-shape at end)
   if (points.length >= 10 && totalLength > 40) {
     const mainBodyLastIdx = Math.floor(points.length * 0.75);
     const mainVector = {
@@ -90,14 +208,12 @@ export function detectSmartShape(points: StrokePoint[]): {
     const mainLen = Math.hypot(mainVector.x, mainVector.y);
 
     if (mainLen > 30) {
-      // Check head turning points
       const endVector = {
         x: last.x - points[mainBodyLastIdx].x,
         y: last.y - points[mainBodyLastIdx].y,
       };
       const dot = (mainVector.x * endVector.x + mainVector.y * endVector.y) / (mainLen * (Math.hypot(endVector.x, endVector.y) || 1));
       
-      // If turnaround or hook at the end
       if (dot < 0.2 || (startEndDist > totalLength * 0.7 && totalLength > mainLen * 1.15)) {
         return {
           detected: true,
@@ -115,7 +231,6 @@ export function detectSmartShape(points: StrokePoint[]): {
   // 2. STRAIGHT LINE DETECTION
   const directDistance = Math.hypot(last.x - first.x, last.y - first.y);
   if (totalLength > 35 && directDistance / totalLength > 0.90) {
-    // Snap to pure horizontal or vertical if angle is within 7 degrees
     let endX = last.x;
     let endY = last.y;
     const angleRad = Math.atan2(Math.abs(last.y - first.y), Math.abs(last.x - first.x));
@@ -145,7 +260,6 @@ export function detectSmartShape(points: StrokePoint[]): {
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
 
-    // Calculate radial distance variance from center
     let sumDist = 0;
     const distances: number[] = [];
     for (let i = 0; i < points.length; i++) {
@@ -163,9 +277,8 @@ export function detectSmartShape(points: StrokePoint[]): {
 
     const perimeter = 2 * (width + height);
     const circlePerimeter = Math.PI * ((width + height) / 2);
-    const aspectRatio = Math.min(width, height) / Math.max(width, height);
 
-    // Rough Circle / Ellipse Detection
+    // Circle / Ellipse Detection
     if (radialVarianceRatio < 0.24 && Math.abs(totalLength - circlePerimeter) / circlePerimeter < 0.38) {
       return {
         detected: true,
