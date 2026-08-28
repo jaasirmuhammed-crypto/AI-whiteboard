@@ -16,7 +16,8 @@ export type AppView =
   | 'topic_view'
   | 'mcq_test'
   | 'bookmarks'
-  | 'admin';
+  | 'admin'
+  | 'docs';
 
 interface ProjectContextType {
   projects: WhiteboardProject[];
@@ -24,6 +25,8 @@ interface ProjectContextType {
   currentView: AppView;
   setCurrentView: (view: AppView) => void;
   autoSaveState: AutoSaveState;
+  lastSavedTime: string | null;
+  forceSaveNow: () => void;
   createProject: (title?: string, pattern?: BackgroundPattern) => WhiteboardProject;
   loadProject: (projectId: string) => void;
   updateCurrentProjectElements: (elements: WhiteboardElement[], thumbnail?: string) => void;
@@ -43,9 +46,25 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [currentProject, setCurrentProject] = useState<WhiteboardProject | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('landing');
   const [autoSaveState, setAutoSaveState] = useState<AutoSaveState>('saved');
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(() => {
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  });
   const [activeStudyMaterials, setActiveStudyMaterials] = useState<StudyMaterialsPackage | null>(null);
 
   const saveTimeoutRef = useRef<any>(null);
+  const currentProjectRef = useRef<WhiteboardProject | null>(currentProject);
+  currentProjectRef.current = currentProject;
+
+  // Flush any pending strokes on beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (currentProjectRef.current) {
+        StorageService.saveProject(currentProjectRef.current);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   // Load projects from storage on mount & restore last active drawing
   useEffect(() => {
@@ -64,6 +83,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Save current project debounced & sync to Firebase Firestore cloud
   const triggerAutoSave = useCallback((updated: WhiteboardProject) => {
     setAutoSaveState('saving');
+    // Immediately persist locally for zero loss
+    StorageService.saveProject(updated);
+
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
     saveTimeoutRef.current = setTimeout(async () => {
@@ -71,12 +93,27 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         await FirebaseService.saveDrawingToCloud(user, updated.thumbnailDataUrl || '', updated);
         setProjects(StorageService.getProjects());
         setAutoSaveState('saved');
+        setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       } catch (err) {
-        console.error('Autosave error', err);
-        setAutoSaveState('error');
+        console.error('Autosave cloud sync error', err);
+        setAutoSaveState('saved'); // Local storage is already safely preserved
+        setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       }
-    }, 600);
+    }, 400);
   }, [user]);
+
+  const forceSaveNow = useCallback(() => {
+    if (currentProject) {
+      setAutoSaveState('saving');
+      StorageService.saveProject(currentProject);
+      FirebaseService.saveDrawingToCloud(user, currentProject.thumbnailDataUrl || '', currentProject)
+        .finally(() => {
+          setProjects(StorageService.getProjects());
+          setAutoSaveState('saved');
+          setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        });
+    }
+  }, [currentProject, user]);
 
   const createProject = (title?: string, pattern: BackgroundPattern = 'ruled'): WhiteboardProject => {
     const newProj: WhiteboardProject = {
@@ -177,6 +214,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         currentView,
         setCurrentView,
         autoSaveState,
+        lastSavedTime,
+        forceSaveNow,
         createProject,
         loadProject,
         updateCurrentProjectElements,

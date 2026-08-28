@@ -50,7 +50,11 @@ import {
   FileText,
   Sliders,
   ChevronLeft,
-  Calendar
+  Calendar,
+  Mail,
+  Copy,
+  Send,
+  UserCheck
 } from 'lucide-react';
 import { useToast } from '../common/Toast';
 
@@ -92,7 +96,7 @@ export const AdminDashboardView: React.FC = () => {
 
   // User Table Search & Filters
   const [userSearch, setUserSearch] = useState('');
-  const [userPlanFilter, setUserPlanFilter] = useState<'all' | 'premium' | 'free'>('all');
+  const [userPlanFilter, setUserPlanFilter] = useState<'all' | 'premium' | 'free' | 'gmail'>('all');
   const [userPage, setUserPage] = useState(1);
   const USERS_PER_PAGE = 8;
 
@@ -204,18 +208,30 @@ export const AdminDashboardView: React.FC = () => {
   };
 
   // Filtered Users Table Data
+  const gmailCount = useMemo(() => userRecords.filter((u) => u.email.toLowerCase().includes('@gmail.com')).length, [userRecords]);
+  const proCount = useMemo(() => userRecords.filter((u) => u.plan === 'premium').length, [userRecords]);
+  const freeCount = useMemo(() => userRecords.filter((u) => u.plan === 'free').length, [userRecords]);
+
+  const handleCopyEmail = (email: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    navigator.clipboard.writeText(email);
+    showToast(`Copied ${email} to clipboard! 📋`, 'success');
+  };
+
   const filteredUsers = useMemo(() => {
     return userRecords.filter((u) => {
+      const term = userSearch.toLowerCase().trim();
       const matchesSearch =
-        !userSearch ||
-        u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-        u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-        u.id.toLowerCase().includes(userSearch.toLowerCase());
+        !term ||
+        u.name.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term) ||
+        u.id.toLowerCase().includes(term);
 
       const matchesPlan =
         userPlanFilter === 'all' ||
         (userPlanFilter === 'premium' && u.plan === 'premium') ||
-        (userPlanFilter === 'free' && u.plan === 'free');
+        (userPlanFilter === 'free' && u.plan === 'free') ||
+        (userPlanFilter === 'gmail' && u.email.toLowerCase().includes('@gmail.com'));
 
       return matchesSearch && matchesPlan;
     });
@@ -379,13 +395,13 @@ export const AdminDashboardView: React.FC = () => {
           <nav className="space-y-1">
             {[
               { id: 'overview', label: 'Dashboard Overview', icon: Layers },
-              { id: 'user_analytics', label: 'User Growth & DAU', icon: Users },
+              { id: 'users_table', label: 'Registered Users & Gmail', icon: Users, badge: userRecords.length },
+              { id: 'user_analytics', label: 'User Growth & DAU', icon: TrendingUp },
               { id: 'ai_usage', label: 'AI Usage & Synthesis', icon: Sparkles },
               { id: 'features', label: 'Feature Analytics', icon: Sliders },
               { id: 'tokens', label: 'Tokens & Limits', icon: Zap },
               { id: 'payments', label: 'Revenue & Razorpay', icon: CreditCard },
-              { id: 'funnel', label: 'Conversion Funnel', icon: TrendingUp },
-              { id: 'users_table', label: 'User Directory', icon: FileText },
+              { id: 'funnel', label: 'Conversion Funnel', icon: Activity },
               { id: 'system_health', label: 'System Health', icon: Server },
               { id: 'reviews', label: 'Reviews & Feedback', icon: CheckCircle2 },
             ].map((tab) => {
@@ -405,6 +421,13 @@ export const AdminDashboardView: React.FC = () => {
                     <Icon className="w-4 h-4" />
                     <span>{tab.label}</span>
                   </div>
+                  {tab.id === 'users_table' && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                    }`}>
+                      {userRecords.length}
+                    </span>
+                  )}
                   {tab.id === 'tokens' && tokenAnalytics.usersAtLimit.length > 0 && (
                     <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[9px] font-bold">
                       {tokenAnalytics.usersAtLimit.length}
@@ -763,6 +786,132 @@ export const AdminDashboardView: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Registered Users & Gmail Quick Directory Preview */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">Registered Users & Gmail Accounts</h3>
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold font-mono">
+                        {userRecords.length} Total Users
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-bold font-mono flex items-center gap-1">
+                        <Mail className="w-3 h-3" />
+                        {gmailCount} Gmail
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">Recently registered student profiles, emails, and account status</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTab('users_table')}
+                    className="px-3.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center gap-1 transition-colors"
+                  >
+                    <span>View All {userRecords.length} Users</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                      <th className="py-3 px-4">User</th>
+                      <th className="py-3 px-4">Registered Gmail / Email</th>
+                      <th className="py-3 px-4">Plan</th>
+                      <th className="py-3 px-4">Joined Date</th>
+                      <th className="py-3 px-4">Credits</th>
+                      <th className="py-3 px-4 text-right">Quick Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                    {userRecords.slice(0, 5).map((u) => {
+                      const isGmail = u.email.toLowerCase().includes('@gmail.com');
+                      return (
+                        <tr
+                          key={u.id}
+                          onClick={() => setSelectedUserForModal(u)}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                        >
+                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs">
+                              {u.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div>{u.name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{u.id}</div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 font-medium select-all">
+                                {u.email}
+                              </span>
+                              {isGmail && (
+                                <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[9px] font-bold border border-rose-500/20">
+                                  Gmail
+                                </span>
+                              )}
+                              <button
+                                onClick={(e) => handleCopyEmail(u.email, e)}
+                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                title="Copy Email"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                              <a
+                                href={`mailto:${u.email}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-indigo-600 transition-colors"
+                                title="Send Email"
+                              >
+                                <Send className="w-3 h-3" />
+                              </a>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                u.plan === 'premium'
+                                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                              }`}
+                            >
+                              {u.plan === 'premium' ? 'PRO ⭐' : 'FREE'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-400 text-[11px]">
+                            {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Recent'}
+                          </td>
+                          <td className="py-3 px-4 font-mono font-semibold">
+                            {u.plan === 'premium' ? '∞' : `${u.tokensRemaining} left`}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedUserForModal(u);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 text-[10px] font-bold transition-colors"
+                            >
+                              Inspect
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1092,131 +1241,252 @@ export const AdminDashboardView: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 8: USER DIRECTORY & DEEP DIVE */}
+        {/* TAB 8: REGISTERED USERS & GMAIL DIRECTORY */}
         {/* ========================================================================= */}
         {activeTab === 'users_table' && (
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Student Account Directory</h3>
-                <p className="text-xs text-slate-400">Click any user record to open detailed individual analytics</p>
+          <div className="space-y-6">
+            {/* Top Quick Stats Highlight */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Registered Users</span>
+                <div className="text-2xl font-bold font-brand text-indigo-600 dark:text-indigo-400">{userRecords.length}</div>
+                <span className="text-[11px] text-slate-400">Verified Database Profiles</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by name, email..."
-                    value={userSearch}
-                    onChange={(e) => {
-                      setUserSearch(e.target.value);
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Gmail Accounts (@gmail)</span>
+                <div className="text-2xl font-bold font-brand text-rose-600 dark:text-rose-400">{gmailCount}</div>
+                <span className="text-[11px] text-rose-500 font-semibold">Google Auth / Gmail</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pro Scholars</span>
+                <div className="text-2xl font-bold font-brand text-amber-600">{proCount}</div>
+                <span className="text-[11px] text-amber-500 font-semibold">Active Unlimited Plan</span>
+              </div>
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Free Tier Starters</span>
+                <div className="text-2xl font-bold font-brand text-slate-700 dark:text-slate-300">{freeCount}</div>
+                <span className="text-[11px] text-slate-400">5 Daily AI Credits</span>
+              </div>
+            </div>
+
+            {/* Users Directory Table Card */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Users className="w-5 h-5 text-indigo-600" />
+                    Registered Users & Gmail Directory
+                  </h3>
+                  <p className="text-xs text-slate-400">Complete student roster with registered emails, Gmail badges, plan tiers, and usage telemetry</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, gmail..."
+                      value={userSearch}
+                      onChange={(e) => {
+                        setUserSearch(e.target.value);
+                        setUserPage(1);
+                      }}
+                      className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white w-48 sm:w-60"
+                    />
+                  </div>
+                  <button
+                    onClick={() => AnalyticsTrackingService.exportToCSV('users')}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center gap-1.5 hover:bg-indigo-100 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export CSV
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Chips Bar */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <span className="text-slate-400 font-semibold text-[11px] mr-1">Filter:</span>
+                {[
+                  { id: 'all', label: `All Users (${userRecords.length})` },
+                  { id: 'gmail', label: `Gmail Only (${gmailCount})`, icon: Mail },
+                  { id: 'premium', label: `⭐ Pro Plan (${proCount})` },
+                  { id: 'free', label: `Free Tier (${freeCount})` },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      setUserPlanFilter(f.id as any);
                       setUserPage(1);
                     }}
-                    className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                  />
-                </div>
-                <select
-                  value={userPlanFilter}
-                  onChange={(e) => {
-                    setUserPlanFilter(e.target.value as any);
-                    setUserPage(1);
-                  }}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300"
-                >
-                  <option value="all">All Plans</option>
-                  <option value="premium">⭐ Pro Only</option>
-                  <option value="free">Free Only</option>
-                </select>
+                    className={`px-3 py-1 rounded-xl font-semibold transition-all flex items-center gap-1.5 ${
+                      userPlanFilter === f.id
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {f.icon && <f.icon className="w-3 h-3" />}
+                    <span>{f.label}</span>
+                  </button>
+                ))}
               </div>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Student</th>
-                    <th className="py-3 px-4">Email</th>
-                    <th className="py-3 px-4">Plan</th>
-                    <th className="py-3 px-4">AI Gens</th>
-                    <th className="py-3 px-4">Credits Remaining</th>
-                    <th className="py-3 px-4">Revenue</th>
-                    <th className="py-3 px-4">Last Active</th>
-                    <th className="py-3 px-4">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                  {paginatedUsers.map((u) => (
-                    <tr
-                      key={u.id}
-                      onClick={() => setSelectedUserForModal(u)}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
-                    >
-                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                        {u.plan === 'premium' && <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                        <span>{u.name}</span>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">{u.email}</td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            u.plan === 'premium'
-                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                          }`}
-                        >
-                          {u.plan === 'premium' ? 'PRO ⭐' : 'FREE'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 font-semibold">{u.aiGenerationsCount}</td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">
-                        {u.plan === 'premium' ? '∞' : u.tokensRemaining}
-                      </td>
-                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
-                        ₹{u.totalRevenueGenerated}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-400 text-[11px]">
-                        {new Date(u.lastActive).toLocaleDateString()}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedUserForModal(u);
-                          }}
-                          className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-600 hover:text-white transition-colors text-[10px] font-bold"
-                        >
-                          Inspect
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                      <th className="py-3 px-4">Student</th>
+                      <th className="py-3 px-4">Registered Gmail / Email</th>
+                      <th className="py-3 px-4">Plan Tier</th>
+                      <th className="py-3 px-4">AI Generations</th>
+                      <th className="py-3 px-4">Credits Remaining</th>
+                      <th className="py-3 px-4">Total Revenue</th>
+                      <th className="py-3 px-4">Registered Date</th>
+                      <th className="py-3 px-4">Last Active</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                    {paginatedUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-8 text-center text-slate-400 italic">
+                          No registered users found matching your search or filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedUsers.map((u) => {
+                        const isGmail = u.email.toLowerCase().includes('@gmail.com');
+                        return (
+                          <tr
+                            key={u.id}
+                            onClick={() => setSelectedUserForModal(u)}
+                            className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                          >
+                            <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs shrink-0">
+                                {u.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  {u.plan === 'premium' && <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                                  <span>{u.name}</span>
+                                </div>
+                                <span className="font-mono text-[10px] text-slate-400 font-normal">{u.id}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-[11px] text-slate-800 dark:text-slate-200 font-medium select-all">
+                                  {u.email}
+                                </span>
+                                {isGmail ? (
+                                  <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[10px] font-bold flex items-center gap-1">
+                                    <Mail className="w-2.5 h-2.5 text-rose-500" />
+                                    Gmail
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-semibold">
+                                    {u.email.includes('@') ? u.email.split('@')[1] : 'Email'}
+                                  </span>
+                                )}
+                                <button
+                                  onClick={(e) => handleCopyEmail(u.email, e)}
+                                  className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                  title="Copy Email"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                                <a
+                                  href={`mailto:${u.email}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-indigo-600 transition-colors"
+                                  title="Send Email"
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                  u.plan === 'premium'
+                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                }`}
+                              >
+                                {u.plan === 'premium' ? 'PRO ⭐' : 'FREE'}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 font-semibold">{u.aiGenerationsCount}</td>
+                            <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                              {u.plan === 'premium' ? '∞' : u.tokensRemaining}
+                            </td>
+                            <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
+                              ₹{u.totalRevenueGenerated}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px]">
+                              {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Recent'}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-400 text-[11px]">
+                              {new Date(u.lastActive).toLocaleDateString()}
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedUserForModal(u);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-600 hover:text-white transition-colors text-[10px] font-bold"
+                                >
+                                  Inspect
+                                </button>
+                                {u.plan !== 'premium' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setManualEmail(u.email);
+                                      setManualName(u.name);
+                                      setShowManualGrantModal(true);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white transition-colors text-[10px] font-bold border border-amber-500/20"
+                                  >
+                                    Grant Pro
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-              <span className="text-slate-400">
-                Showing {paginatedUsers.length} of {filteredUsers.length} users
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  disabled={userPage <= 1}
-                  onClick={() => setUserPage((p) => Math.max(1, p - 1))}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="font-bold text-slate-700 dark:text-slate-300">
-                  {userPage} / {totalUserPages}
+              {/* Pagination Controls */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <span className="text-slate-400">
+                  Showing {paginatedUsers.length} of {filteredUsers.length} users ({gmailCount} Gmail accounts)
                 </span>
-                <button
-                  disabled={userPage >= totalUserPages}
-                  onClick={() => setUserPage((p) => Math.min(totalUserPages, p + 1))}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={userPage <= 1}
+                    onClick={() => setUserPage((p) => Math.max(1, p - 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">
+                    {userPage} / {totalUserPages}
+                  </span>
+                  <button
+                    disabled={userPage >= totalUserPages}
+                    onClick={() => setUserPage((p) => Math.min(totalUserPages, p + 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

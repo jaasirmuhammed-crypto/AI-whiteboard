@@ -12,10 +12,12 @@ import {
   HelpCircle,
   Award,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  FileCode
 } from 'lucide-react';
 import { PresentationData, PPTSlide } from '../../types/studyMaterial';
 import { ExportService } from '../../services/exportService';
+import { ExportHubModal } from '../whiteboard/ExportHubModal';
 import { useToast } from '../common/Toast';
 
 interface PPTViewerProps {
@@ -26,6 +28,7 @@ export const PPTViewer: React.FC<PPTViewerProps> = ({ presentation }) => {
   const { showToast } = useToast();
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [showNotes, setShowNotes] = useState(false);
+  const [exportHubOpen, setExportHubOpen] = useState(false);
 
   const slides = presentation.slides || [];
   const currentSlide: PPTSlide | undefined = slides[currentSlideIndex];
@@ -199,11 +202,20 @@ export const PPTViewer: React.FC<PPTViewerProps> = ({ presentation }) => {
           </button>
 
           <button
+            onClick={() => setExportHubOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold shadow-xs hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition-all flex items-center gap-1.5"
+            title="Export to Google Slides, Notion, PDF, PPTX, Word, SVG, PNG"
+          >
+            <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span>Export Hub (7 Formats)</span>
+          </button>
+
+          <button
             onClick={handleExportPDF}
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Download .PDF</span>
+            <span>.PDF</span>
           </button>
 
           <button
@@ -211,7 +223,7 @@ export const PPTViewer: React.FC<PPTViewerProps> = ({ presentation }) => {
             className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-95 transition-all flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Download .PPTX</span>
+            <span>.PPTX</span>
           </button>
         </div>
       </div>
@@ -415,6 +427,18 @@ export const PPTViewer: React.FC<PPTViewerProps> = ({ presentation }) => {
           </p>
         </div>
       )}
+
+      {/* Multi-Format Export Hub Modal */}
+      <ExportHubModal
+        isOpen={exportHubOpen}
+        onClose={() => setExportHubOpen(false)}
+        studyPackage={{
+          topic: presentation.topic || presentation.title,
+          summary: presentation.slides?.[0]?.subtitle || `Lecture slides on ${presentation.title}`,
+          presentation: presentation,
+        }}
+        projectTitle={presentation.title}
+      />
 
     </div>
   );

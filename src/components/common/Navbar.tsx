@@ -10,14 +10,16 @@ import {
   LayoutDashboard, 
   PenTool, 
   BookOpen, 
-  ChevronDown,
-  Trophy,
-  ShieldCheck,
-  Crown,
-  Zap
+  ChevronDown, 
+  Trophy, 
+  ShieldCheck, 
+  Crown, 
+  Zap,
+  Eye
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useAccessibility } from '../../context/AccessibilityContext';
 import { useI18n } from '../../i18n';
 import { useProject, AppView } from '../../context/ProjectContext';
 import { LanguageSelector } from './LanguageSelector';
@@ -31,6 +33,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onOpenLogin, onOpenRegister, onOpenUpgradeModal }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, isAuthenticated, logout, isPremium } = useAuth();
+  const { setAccessibilityModalOpen } = useAccessibility();
   const { t } = useI18n();
   const { currentView, setCurrentView, createProject } = useProject();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -125,7 +128,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLogin, onOpenRegister, onO
               }`}
             >
               <Trophy className="w-3.5 h-3.5 text-amber-500" />
-              {t.nav.competitive || 'Competitive Mode'}
+              <span>{t.nav.competitive || 'Competitive Mode'}</span>
+            </button>
+
+            {/* Docs & Guides Link */}
+            <button
+              onClick={() => navigateTo('docs')}
+              className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                currentView === 'docs'
+                  ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Docs</span>
             </button>
 
             {/* Admin Dashboard Link */}
@@ -138,7 +154,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLogin, onOpenRegister, onO
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-              {t.nav.admin || 'Admin'}
+              <span>{t.nav.admin || 'Admin'}</span>
             </button>
           </nav>
 
@@ -165,11 +181,21 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLogin, onOpenRegister, onO
             {/* Language Selector */}
             <LanguageSelector />
 
+            {/* Accessibility & High Contrast Quick Toggle */}
+            <button
+              onClick={() => setAccessibilityModalOpen(true)}
+              aria-label="Open Accessibility & Assistive Settings"
+              title="Accessibility & High Contrast Mode (WCAG 2.1)"
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500"
+            >
+              <Eye className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            </button>
+
             {/* Light / Dark Mode Toggle */}
             <button
               onClick={toggleTheme}
               aria-label="Toggle Theme"
-              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
               {theme === 'dark' ? (
                 <Sun className="w-5 h-5 text-amber-400 transition-transform duration-300 hover:rotate-45" />
@@ -308,10 +334,28 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLogin, onOpenRegister, onO
             Competitive Mode
           </button>
           <button
-            onClick={() => navigateTo('admin')}
-            className="w-full text-left px-4 py-2.5 text-sm font-semibold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            onClick={() => navigateTo('docs')}
+            className="w-full text-left px-4 py-2.5 text-sm font-semibold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
           >
-            Admin Dashboard
+            <BookOpen className="w-4 h-4 text-indigo-500" />
+            <span>Docs & Guides</span>
+          </button>
+          <button
+            onClick={() => navigateTo('admin')}
+            className="w-full text-left px-4 py-2.5 text-sm font-semibold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
+          >
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            <span>Admin Dashboard</span>
+          </button>
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              setAccessibilityModalOpen(true);
+            }}
+            className="w-full text-left px-4 py-2.5 text-sm font-semibold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
+          >
+            <Eye className="w-4 h-4 text-indigo-500" />
+            <span>Accessibility Settings (WCAG 2.1)</span>
           </button>
           {!isPremium && onOpenUpgradeModal && (
             <button

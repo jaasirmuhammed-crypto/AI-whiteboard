@@ -1,9 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense, lazy } from 'react';
+import { Loader2 } from 'lucide-react';
 import { ThemeProvider } from './context/ThemeContext';
 import { I18nProvider } from './i18n';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './components/common/Toast';
 import { ProjectProvider, useProject } from './context/ProjectContext';
+import { AccessibilityProvider } from './context/AccessibilityContext';
 
 import { LiveWaveBackground } from './components/common/LiveWaveBackground';
 import { BrushIntroScreen } from './components/common/BrushIntroScreen';
@@ -11,9 +13,14 @@ import { TopicsExpertiseCard } from './components/common/TopicsExpertiseCard';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 import { OfflineBanner } from './components/common/OfflineBanner';
+import { AccessibilityModal } from './components/common/AccessibilityModal';
 
-// Landing Page Components
+// Landing Page & Marketing Components (Loaded immediately for fast First Contentful Paint)
 import { HeroSection } from './components/landing/HeroSection';
+import { VideoTutorialSection } from './components/landing/VideoTutorialSection';
+import { SubjectUseCasesSection } from './components/landing/SubjectUseCasesSection';
+import { TestimonialsSection } from './components/landing/TestimonialsSection';
+import { PricingSection } from './components/landing/PricingSection';
 import { HowItWorksSection } from './components/landing/HowItWorksSection';
 import { FeaturesSection } from './components/landing/FeaturesSection';
 import { OutputsShowcase } from './components/landing/OutputsShowcase';
@@ -54,27 +61,36 @@ import { AIWritingAssistantModal } from './components/ai/AIWritingAssistantModal
 import { VoiceAnnotationBar } from './components/whiteboard/VoiceAnnotationBar';
 
 // Common Core Modals & Payments
-import { ExportHubModal } from './components/common/ExportHubModal';
+import { ExportHubModal } from './components/whiteboard/ExportHubModal';
 import { AnalyticsModal } from './components/common/AnalyticsModal';
 import { QuotaUsageModal } from './components/common/QuotaUsageModal';
 import { TokensExhaustedModal } from './components/common/TokensExhaustedModal';
 import { OnboardingTourModal } from './components/common/OnboardingTourModal';
 import { telemetryService } from './services/telemetryService';
-
-// Study Hub
-import { StudyMaterialsHub } from './components/study/StudyMaterialsHub';
 import { Exam } from './types/competitive';
-
-// Competitive Mode & Admin Components
-import { CompetitiveHubView } from './components/competitive/CompetitiveHubView';
-import { ExamDetailView } from './components/competitive/ExamDetailView';
-import { TopicLearningView } from './components/competitive/TopicLearningView';
-import { MCQTestSystem } from './components/competitive/MCQTestSystem';
-import { BookmarksView } from './components/competitive/BookmarksView';
-import { AdminDashboardView } from './components/admin/AdminDashboardView';
 import { CompetitiveService } from './services/competitiveService';
 import { AnalyticsTrackingService } from './services/analyticsTrackingService';
 import { Topic } from './types/competitive';
+
+// ⚡ Code Splitting: Lazy-loaded heavy views for maximum initial page speed
+const DocumentationHubView = lazy(() => import('./components/docs/DocumentationHubView').then(m => ({ default: m.DocumentationHubView })));
+const StudyMaterialsHub = lazy(() => import('./components/study/StudyMaterialsHub').then(m => ({ default: m.StudyMaterialsHub })));
+const CompetitiveHubView = lazy(() => import('./components/competitive/CompetitiveHubView').then(m => ({ default: m.CompetitiveHubView })));
+const ExamDetailView = lazy(() => import('./components/competitive/ExamDetailView').then(m => ({ default: m.ExamDetailView })));
+const TopicLearningView = lazy(() => import('./components/competitive/TopicLearningView').then(m => ({ default: m.TopicLearningView })));
+const MCQTestSystem = lazy(() => import('./components/competitive/MCQTestSystem').then(m => ({ default: m.MCQTestSystem })));
+const BookmarksView = lazy(() => import('./components/competitive/BookmarksView').then(m => ({ default: m.BookmarksView })));
+const AdminDashboardView = lazy(() => import('./components/admin/AdminDashboardView').then(m => ({ default: m.AdminDashboardView })));
+
+// Loading Suspense Fallback
+const ViewLoadingFallback = () => (
+  <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3 p-8 text-center" role="status" aria-live="polite">
+    <div className="w-10 h-10 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center animate-spin">
+      <Loader2 className="w-5 h-5" />
+    </div>
+    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 animate-pulse">Loading Workspace Module...</span>
+  </div>
+);
 
 // Types & Services
 import { ToolType, PenType, PencilType, EraserType, ShapeType, CanvasLayer, CollaboratorCursor, LineSmoothingLevel } from './types/whiteboard';
@@ -238,16 +254,16 @@ const MainAppContent: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalShortcuts);
   }, []);
 
-  // Auto-open personalized onboarding questionnaire for first-time visitors
+  // Live Brush Intro Animation State
+  const [showIntro, setShowIntro] = useState(true);
+
+  // Auto-open personalized onboarding questionnaire for first-time visitors when intro is closed
   useEffect(() => {
     const hasCompleted = localStorage.getItem('has_completed_onboarding');
-    if (!hasCompleted) {
-      const timer = setTimeout(() => {
-        setOnboardingTourOpen(true);
-      }, 500);
-      return () => clearTimeout(timer);
+    if (!hasCompleted && !showIntro) {
+      setOnboardingTourOpen(true);
     }
-  }, []);
+  }, [showIntro]);
 
   // Track when upgrade / quota modals are viewed
   useEffect(() => {
@@ -259,9 +275,6 @@ const MainAppContent: React.FC = () => {
       });
     }
   }, [quotaModalOpen, tokensExhaustedModalOpen]);
-
-  // Live Brush Intro Animation State
-  const [showIntro, setShowIntro] = useState(true);
 
   // AI Generation State
   const [topicConfirmOpen, setTopicConfirmOpen] = useState(false);
@@ -506,9 +519,21 @@ const MainAppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 relative overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
+      {/* ♿ WCAG 2.1 Skip Link for Keyboard & Screen Readers */}
+      <a href="#main-content" className="skip-to-content">
+        Skip to Main Content
+      </a>
+
       {/* Live Brush Intro Animation */}
-      {showIntro && <BrushIntroScreen onComplete={() => setShowIntro(false)} />}
+      {showIntro && (
+        <BrushIntroScreen
+          onComplete={() => {
+            setShowIntro(false);
+            setOnboardingTourOpen(true);
+          }}
+        />
+      )}
 
       {/* Global Offline Mode Status Banner */}
       <OfflineBanner />
@@ -524,10 +549,16 @@ const MainAppContent: React.FC = () => {
       />
 
       {/* Main View Router */}
-      <main className="flex-1 relative z-10">
+      <main id="main-content" className="flex-1 relative z-10" role="main">
         {currentView === 'landing' && (
           <div>
             <HeroSection onStartWriting={handleStartWriting} />
+
+            {/* Video Tutorial & Interactive Masterclass Section */}
+            <VideoTutorialSection onStartWriting={handleStartWriting} />
+
+            {/* Multi-Disciplinary Subject Transformation Showcase */}
+            <SubjectUseCasesSection onExploreOutput={() => handleStartWriting()} />
 
             {/* AI Topics & Subject Expertise Card */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -542,6 +573,20 @@ const MainAppContent: React.FC = () => {
             <HowItWorksSection />
             <FeaturesSection />
             <OutputsShowcase onExploreOutput={() => handleStartWriting()} />
+
+            {/* Testimonials & Verified Educator Reviews */}
+            <TestimonialsSection />
+
+            {/* Transparent Pricing & Monetization Tiers */}
+            <PricingSection onSelectPlan={(planId) => {
+              if (planId === 'free') {
+                createProject();
+                setCurrentView('whiteboard');
+              } else {
+                setTokensExhaustedModalOpen(true);
+              }
+            }} />
+
             <BenefitsSection />
             <DemoWhiteboard />
             <LiveStudentReviewsSection />
@@ -551,99 +596,109 @@ const MainAppContent: React.FC = () => {
           </div>
         )}
 
-        {currentView === 'dashboard' && (
-          <div>
-            <DashboardView />
-            <Footer />
-          </div>
-        )}
+        <Suspense fallback={<ViewLoadingFallback />}>
+          {/* Documentation Hub & User Guides */}
+          {currentView === 'docs' && (
+            <div>
+              <DocumentationHubView />
+              <Footer />
+            </div>
+          )}
 
-        {currentView === 'study_hub' && activeStudyMaterials && (
-          <div>
-            <StudyMaterialsHub packageData={activeStudyMaterials} />
-            <Footer />
-          </div>
-        )}
+          {currentView === 'dashboard' && (
+            <div>
+              <DashboardView />
+              <Footer />
+            </div>
+          )}
 
-        {/* Competitive Mode Hub Router */}
-        {currentView === 'competitive' && (
-          <div>
-            <CompetitiveHubView
-              onSelectExam={(examId) => {
-                setSelectedExamId(examId);
-                CompetitiveService.recordExamVisit(examId);
-                setCurrentView('exam_detail');
-              }}
-              onOpenBookmarks={() => setCurrentView('bookmarks')}
-            />
-            <Footer />
-          </div>
-        )}
+          {currentView === 'study_hub' && activeStudyMaterials && (
+            <div>
+              <StudyMaterialsHub packageData={activeStudyMaterials} />
+              <Footer />
+            </div>
+          )}
 
-        {/* Exam Detail View */}
-        {currentView === 'exam_detail' && selectedExam && (
-          <div>
-            <ExamDetailView
-              exam={selectedExam}
-              onBack={() => setCurrentView('competitive')}
-              onSelectTopic={(topicObj) => {
-                setSelectedTopic(topicObj);
-                setCurrentView('topic_view');
-              }}
-              onStartMCQ={() => {
-                setCurrentView('mcq_test');
-              }}
-            />
-            <Footer />
-          </div>
-        )}
+          {/* Competitive Mode Hub Router */}
+          {currentView === 'competitive' && (
+            <div>
+              <CompetitiveHubView
+                onSelectExam={(examId) => {
+                  setSelectedExamId(examId);
+                  CompetitiveService.recordExamVisit(examId);
+                  setCurrentView('exam_detail');
+                }}
+                onOpenBookmarks={() => setCurrentView('bookmarks')}
+              />
+              <Footer />
+            </div>
+          )}
 
-        {/* Topic Learning Detail View */}
-        {currentView === 'topic_view' && selectedExam && selectedTopic && (
-          <div>
-            <TopicLearningView
-              exam={selectedExam}
-              topic={selectedTopic}
-              onBack={() => setCurrentView('exam_detail')}
-              onTakeMCQ={() => setCurrentView('mcq_test')}
-            />
-            <Footer />
-          </div>
-        )}
+          {/* Exam Detail View */}
+          {currentView === 'exam_detail' && selectedExam && (
+            <div>
+              <ExamDetailView
+                exam={selectedExam}
+                onBack={() => setCurrentView('competitive')}
+                onSelectTopic={(topicObj) => {
+                  setSelectedTopic(topicObj);
+                  setCurrentView('topic_view');
+                }}
+                onStartMCQ={() => {
+                  setCurrentView('mcq_test');
+                }}
+              />
+              <Footer />
+            </div>
+          )}
 
-        {/* MCQ Test System View */}
-        {currentView === 'mcq_test' && selectedExam && (
-          <div>
-            <MCQTestSystem
-              exam={selectedExam}
-              initialTopicId={selectedTopic?.id}
-              onBack={() => setCurrentView('exam_detail')}
-            />
-            <Footer />
-          </div>
-        )}
+          {/* Topic Learning Detail View */}
+          {currentView === 'topic_view' && selectedExam && selectedTopic && (
+            <div>
+              <TopicLearningView
+                exam={selectedExam}
+                topic={selectedTopic}
+                onBack={() => setCurrentView('exam_detail')}
+                onTakeMCQ={() => setCurrentView('mcq_test')}
+              />
+              <Footer />
+            </div>
+          )}
 
-        {/* Saved Bookmarks View */}
-        {currentView === 'bookmarks' && (
-          <div>
-            <BookmarksView
-              onBack={() => setCurrentView('competitive')}
-              onSelectExam={(examId) => {
-                setSelectedExamId(examId);
-                setCurrentView('exam_detail');
-              }}
-            />
-            <Footer />
-          </div>
-        )}
+          {/* MCQ Test System View */}
+          {currentView === 'mcq_test' && selectedExam && (
+            <div>
+              <MCQTestSystem
+                exam={selectedExam}
+                initialTopicId={selectedTopic?.id}
+                onBack={() => setCurrentView('exam_detail')}
+              />
+              <Footer />
+            </div>
+          )}
 
-        {/* Admin Portal View */}
-        {currentView === 'admin' && (
-          <div>
-            <AdminDashboardView />
-            <Footer />
-          </div>
-        )}
+          {/* Saved Bookmarks View */}
+          {currentView === 'bookmarks' && (
+            <div>
+              <BookmarksView
+                onBack={() => setCurrentView('competitive')}
+                onSelectExam={(examId) => {
+                  setSelectedExamId(examId);
+                  setCurrentView('exam_detail');
+                }}
+              />
+              <Footer />
+            </div>
+          )}
+
+          {/* Admin Portal View */}
+          {currentView === 'admin' && (
+            <div>
+              <AdminDashboardView />
+              <Footer />
+            </div>
+          )}
+        </Suspense>
 
         {currentView === 'whiteboard' && (
           <div className="relative w-full h-[calc(100vh-64px)] flex flex-col overflow-hidden">
@@ -1011,6 +1066,9 @@ const MainAppContent: React.FC = () => {
         }}
       />
 
+      {/* ♿ Global WCAG 2.1 Accessibility & Assistive Settings Modal */}
+      <AccessibilityModal />
+
     </div>
   );
 };
@@ -1018,15 +1076,17 @@ const MainAppContent: React.FC = () => {
 export default function App() {
   return (
     <ThemeProvider>
-      <I18nProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <ProjectProvider>
-              <MainAppContent />
-            </ProjectProvider>
-          </ToastProvider>
-        </AuthProvider>
-      </I18nProvider>
+      <AccessibilityProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <ProjectProvider>
+                <MainAppContent />
+              </ProjectProvider>
+            </ToastProvider>
+          </AuthProvider>
+        </I18nProvider>
+      </AccessibilityProvider>
     </ThemeProvider>
   );
 }

@@ -85,7 +85,7 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
   isMultiplayerActive = false,
   quotaRemaining = 5,
 }) => {
-  const { currentProject, updateProjectTitle, autoSaveState, setCurrentView, activeStudyMaterials } = useProject();
+  const { currentProject, updateProjectTitle, autoSaveState, lastSavedTime, forceSaveNow, setCurrentView, activeStudyMaterials } = useProject();
   const { t } = useI18n();
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -164,21 +164,25 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
           ))}
         </select>
 
-        {/* Auto-Save Indicator */}
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-          {autoSaveState === 'saving' && (
+        {/* Interactive Auto-Save & Data Loss Prevention Pill */}
+        <button
+          type="button"
+          onClick={forceSaveNow}
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+          title={`Click to Save Immediately • Last saved: ${lastSavedTime || 'Recent'}`}
+        >
+          {autoSaveState === 'saving' ? (
             <>
               <Loader2 className="w-3 h-3 text-indigo-500 animate-spin" />
-              <span>{t.whiteboard.saving}</span>
+              <span className="text-indigo-600 dark:text-indigo-400">Saving...</span>
             </>
-          )}
-          {autoSaveState === 'saved' && (
+          ) : (
             <>
-              <Check className="w-3 h-3 text-emerald-500" />
-              <span className="text-emerald-600 dark:text-emerald-400">{t.whiteboard.saved}</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-emerald-600 dark:text-emerald-400">Autosaved {lastSavedTime ? `• ${lastSavedTime}` : ''}</span>
             </>
           )}
-        </div>
+        </button>
       </div>
 
       {/* Center/Right: Feature Tools and Workflow Actions */}

@@ -64,6 +64,46 @@ export class AnalyticsTrackingService {
   }
 
   /**
+   * Dedicated tracker for Whiteboard Tool changes
+   */
+  public static trackToolChange(tool: string, subType?: string): void {
+    this.trackEvent('WHITEBOARD_EDITED', {
+      feature: 'whiteboard_tool',
+      metadata: { tool, subType },
+    });
+  }
+
+  /**
+   * Dedicated tracker for Subject Template usage
+   */
+  public static trackTemplateUsed(templateName: string, category: string): void {
+    this.trackEvent('WHITEBOARD_CREATED', {
+      feature: 'subject_template',
+      metadata: { templateName, category },
+    });
+  }
+
+  /**
+   * Dedicated tracker for Multi-Format Exports (PPT, Google Slides, Notion, PDF, PNG)
+   */
+  public static trackExportFormat(format: string, title?: string): void {
+    this.trackEvent('CONTENT_DOWNLOADED', {
+      feature: 'export_hub',
+      metadata: { format, title },
+    });
+  }
+
+  /**
+   * Dedicated tracker for Accessibility mode toggling
+   */
+  public static trackAccessibilityToggled(feature: string, enabled: boolean): void {
+    this.trackEvent('WHITEBOARD_EDITED', {
+      feature: 'accessibility_settings',
+      metadata: { feature, enabled },
+    });
+  }
+
+  /**
    * Retrieves all raw events from storage (or seed defaults if empty).
    */
   public static getStoredEvents(): AnalyticsEvent[] {

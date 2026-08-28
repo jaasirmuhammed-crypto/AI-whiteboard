@@ -35,7 +35,7 @@ export const Footer: React.FC = () => {
           {/* Col 2: Navigation */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
-              Navigation
+              Navigation & Resources
             </h4>
             <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
               <li>
@@ -49,8 +49,18 @@ export const Footer: React.FC = () => {
                 </button>
               </li>
               <li>
+                <button onClick={() => setCurrentView('docs')} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                  Documentation & Guides
+                </button>
+              </li>
+              <li>
                 <button onClick={() => setCurrentView('dashboard')} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                   {t.nav.dashboard}
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('competitive')} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                  Competitive Exam Mode
                 </button>
               </li>
             </ul>
