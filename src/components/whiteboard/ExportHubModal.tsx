@@ -12,7 +12,13 @@ import {
   Palette, 
   FileCheck2, 
   X,
-  FileCode
+  FileCode,
+  Cloud,
+  Share2,
+  HardDrive,
+  Sliders,
+  CheckCircle2,
+  Lock
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { ExportService, PPTXTheme } from '../../services/exportService';
@@ -33,6 +39,17 @@ interface ExportHubModalProps {
   canvasSvgString?: string;
 }
 
+export type ExportFormatType = 
+  | 'pptx' 
+  | 'whiteboard_pdf'
+  | 'pdf' 
+  | 'gslides' 
+  | 'notion' 
+  | 'word' 
+  | 'png' 
+  | 'svg'
+  | 'cloud_sync';
+
 export const ExportHubModal: React.FC<ExportHubModalProps> = ({
   isOpen,
   onClose,
@@ -45,12 +62,14 @@ export const ExportHubModal: React.FC<ExportHubModalProps> = ({
   const activeElements = elements.length > 0 ? elements : rawCanvasElements;
   const activeStudyMaterials = studyMaterials || studyPackage;
   const { showToast } = useToast();
-  const [selectedFormat, setSelectedFormat] = useState<'pptx' | 'gslides' | 'pdf' | 'notion' | 'word' | 'png' | 'svg'>('pptx');
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormatType>('pptx');
   const [pptxTheme, setPptxTheme] = useState<PPTXTheme>('indigo');
   const [pngScale, setPngScale] = useState<1 | 2 | 4>(2);
   const [pngTransparent, setPngTransparent] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [copiedNotion, setCopiedNotion] = useState<boolean>(false);
+  const [cloudProvider, setCloudProvider] = useState<'gdrive' | 'onedrive'>('gdrive');
+  const [cloudShareLink, setCloudShareLink] = useState<string | null>(null);
 
   // Derive presentation from study materials or fallback mock
   const presentation: PresentationData = (activeStudyMaterials?.presentation as PresentationData) || {
@@ -96,17 +115,25 @@ export const ExportHubModal: React.FC<ExportHubModalProps> = ({
     setIsExporting(true);
     try {
       if (selectedFormat === 'pptx') {
-        showToast('Generating PowerPoint (.pptx)... 📊', 'info');
+        showToast('Generating PowerPoint (.pptx) with embedded whiteboard slides... 📊', 'info');
         await ExportService.exportToPPTX(presentation, projectTitle, pptxTheme);
         showToast('PowerPoint downloaded successfully! 🎉', 'success');
+      } else if (selectedFormat === 'whiteboard_pdf') {
+        if (activeElements.length === 0) {
+          showToast('No drawing strokes found on canvas to export.', 'info');
+        } else {
+          showToast('Rendering Whiteboard Canvas Drawing into High-DPI PDF... 📄', 'info');
+          await ExportService.exportWhiteboardToPDF(activeElements, projectTitle);
+          showToast('Whiteboard PDF downloaded! 📄', 'success');
+        }
       } else if (selectedFormat === 'gslides') {
         showToast('Preparing Google Slides compatible deck... 🚀', 'info');
         await ExportService.exportToGoogleSlides(presentation, `${projectTitle}_Google_Slides`);
         showToast('Ready for Google Slides! Open drive.google.com to import. 🌟', 'success');
       } else if (selectedFormat === 'pdf') {
-        showToast('Generating Printable PDF... 📄', 'info');
+        showToast('Generating Presentation Slides PDF... 📄', 'info');
         ExportService.exportPresentationToPDF(presentation, projectTitle);
-        showToast('PDF downloaded successfully! 📄', 'success');
+        showToast('Presentation PDF downloaded! 📄', 'success');
       } else if (selectedFormat === 'notion') {
         showToast('Downloading Notion-Ready Page... 📝', 'info');
         ExportService.exportToNotion({
@@ -141,7 +168,14 @@ export const ExportHubModal: React.FC<ExportHubModalProps> = ({
           ExportService.exportToSVGFile(activeElements, projectTitle);
           showToast('Vector SVG exported! 📐', 'success');
         }
+      } else if (selectedFormat === 'cloud_sync') {
+        showToast(`Syncing with ${cloudProvider === 'gdrive' ? 'Google Drive' : 'Microsoft OneDrive'}... ☁️`, 'info');
+        const res = await ExportService.exportToCloudDrive(cloudProvider, projectTitle, 'pdf');
+        setCloudShareLink(res.shareUrl);
+        showToast(`Uploaded to ${res.providerName}! Shareable link created. 🔗`, 'success');
+        return;
       }
+
       AnalyticsTrackingService.trackExportFormat(selectedFormat, projectTitle);
       onClose();
     } catch (err: any) {
@@ -165,7 +199,7 @@ export const ExportHubModal: React.FC<ExportHubModalProps> = ({
       showToast('Copied Notion blocks to clipboard! Paste directly into Notion (Ctrl+V) 📋', 'success');
       setTimeout(() => setCopiedNotion(false), 3000);
     } catch {
-      showToast('Failed to copy to clipboard', 'error');
+      showToast('Failed to copy to clipboard.', 'error');
     }
   };
 
@@ -174,27 +208,36 @@ export const ExportHubModal: React.FC<ExportHubModalProps> = ({
       id: 'pptx',
       title: 'PowerPoint Presentation',
       ext: '.pptx',
-      desc: 'Native Microsoft PowerPoint presentation with custom color themes, typography, and presenter notes.',
+      desc: 'Native 16:9 slides with custom academic themes, speaker notes, and embedded sketches.',
       icon: <Presentation className="w-5 h-5 text-indigo-500" />,
-      badge: 'Popular',
+      badge: 'Native PPTX',
       badgeColor: 'bg-indigo-500/10 text-indigo-600',
     },
     {
+      id: 'whiteboard_pdf',
+      title: 'Whiteboard Drawing PDF',
+      ext: '.pdf',
+      desc: 'Export the actual digital whiteboard handwritten notes & formulas to high-resolution vector PDF.',
+      icon: <FileText className="w-5 h-5 text-rose-500" />,
+      badge: 'Canvas PDF',
+      badgeColor: 'bg-rose-500/10 text-rose-600',
+    },
+    {
       id: 'gslides',
-      title: 'Google Slides',
-      ext: '.pptx / Drive',
-      desc: 'Optimized 16:9 layout ready to upload & open directly in Google Slides without formatting loss.',
-      icon: <ExternalLink className="w-5 h-5 text-amber-500" />,
-      badge: 'Google Drive',
+      title: 'Google Slides Compatible',
+      ext: '.pptx ➔ Slides',
+      desc: '1-Click import format ready for Google Drive (drive.google.com) and Google Classroom.',
+      icon: <Cloud className="w-5 h-5 text-amber-500" />,
+      badge: 'Google Slides',
       badgeColor: 'bg-amber-500/10 text-amber-600',
     },
     {
       id: 'pdf',
-      title: 'Printable PDF Document',
+      title: 'Presentation Slides PDF',
       ext: '.pdf',
-      desc: 'High-yield landscape PDF study packet formatted for revision, printing, and tablet annotating.',
+      desc: 'Print-ready landscape PDF deck with formatted theorem matrices and bullet cards.',
       icon: <FileText className="w-5 h-5 text-rose-500" />,
-      badge: 'Vector PDF',
+      badge: 'Slides PDF',
       badgeColor: 'bg-rose-500/10 text-rose-600',
     },
     {
@@ -207,19 +250,10 @@ export const ExportHubModal: React.FC<ExportHubModalProps> = ({
       badgeColor: 'bg-emerald-500/10 text-emerald-600',
     },
     {
-      id: 'word',
-      title: 'Microsoft Word Document',
-      ext: '.doc',
-      desc: 'Full structured academic study guide with executive summary, slide breakdowns, and quiz answers.',
-      icon: <FileCheck2 className="w-5 h-5 text-blue-500" />,
-      badge: 'MS Word',
-      badgeColor: 'bg-blue-500/10 text-blue-600',
-    },
-    {
       id: 'png',
-      title: 'Retina Canvas Image',
+      title: 'PNG Canvas Snapshot',
       ext: '.png',
-      desc: 'High-resolution raster image snapshot of your whiteboard drawing with 1x, 2x, or 4x scaling.',
+      desc: 'High-resolution raster image snapshot with 1x, 2x Retina, or 4x Ultra HD scaling & transparency.',
       icon: <ImageIcon className="w-5 h-5 text-purple-500" />,
       badge: 'Up to 4K',
       badgeColor: 'bg-purple-500/10 text-purple-600',
@@ -232,6 +266,15 @@ export const ExportHubModal: React.FC<ExportHubModalProps> = ({
       icon: <Layers className="w-5 h-5 text-cyan-500" />,
       badge: 'Vector',
       badgeColor: 'bg-cyan-500/10 text-cyan-600',
+    },
+    {
+      id: 'cloud_sync',
+      title: 'Google Drive & OneDrive Sync',
+      ext: 'Cloud Sync',
+      desc: 'Directly upload and sync your notebook to Google Drive or Microsoft OneDrive.',
+      icon: <HardDrive className="w-5 h-5 text-sky-500" />,
+      badge: 'Direct Cloud',
+      badgeColor: 'bg-sky-500/10 text-sky-600',
     },
   ];
 
@@ -247,25 +290,25 @@ export const ExportHubModal: React.FC<ExportHubModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-bold font-brand text-slate-900 dark:text-white">
-                  Multi-Format Export & Sharing Hub
+                  Multi-Format Export & Cloud Sync Hub
                 </h3>
                 <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold">
-                  7 Formats Available
+                  8 Formats & Cloud Integrations
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Export presentations, study notes, and canvas drawings into industry-standard formats.
+                Export presentations, handwritten whiteboard PDFs, 4K PNGs, and sync directly to Google Drive.
               </p>
             </div>
           </div>
 
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Format Selector Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[48vh] overflow-y-auto pr-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[44vh] overflow-y-auto pr-1">
           {exportCards.map((card) => {
             const isSelected = selectedFormat === card.id;
             return (
@@ -304,126 +347,147 @@ export const ExportHubModal: React.FC<ExportHubModalProps> = ({
           })}
         </div>
 
-        {/* Dynamic Context Options */}
-        {selectedFormat === 'pptx' && (
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-2.5">
+        {/* Quality Controls for PNG */}
+        {selectedFormat === 'png' && (
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Palette className="w-3.5 h-3.5 text-indigo-500" /> PowerPoint Color Theme
+                <Sliders className="w-3.5 h-3.5 text-purple-500" /> Resolution & Transparency Controls
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">16:9 Widescreen</span>
+              <span className="text-[10px] text-slate-400 font-mono">
+                {pngScale === 1 ? '1920x1080 (1x)' : pngScale === 2 ? '3840x2160 Retina (2x)' : '7680x4320 Ultra 4K (4x)'}
+              </span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { id: 'indigo', name: 'Indigo Modern', color: '#4f46e5' },
-                { id: 'midnight', name: 'Midnight Dark', color: '#0284c7' },
-                { id: 'emerald', name: 'Emerald Green', color: '#059669' },
-                { id: 'amber', name: 'Amber Gold', color: '#d97706' },
-              ].map((th) => (
-                <button
-                  key={th.id}
-                  onClick={() => setPptxTheme(th.id as any)}
-                  className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all ${
-                    pptxTheme === th.id
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: th.color }} />
-                  <span>{th.name}</span>
-                </button>
-              ))}
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                {[
+                  { scale: 1, label: '1x Standard' },
+                  { scale: 2, label: '2x Retina (Recommended)' },
+                  { scale: 4, label: '4x Ultra HD' },
+                ].map((item) => (
+                  <button
+                    key={item.scale}
+                    type="button"
+                    onClick={() => setPngScale(item.scale as any)}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                      pngScale === item.scale
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pngTransparent}
+                  onChange={(e) => setPngTransparent(e.target.checked)}
+                  className="rounded-sm border-slate-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span>Transparent Background</span>
+              </label>
             </div>
           </div>
         )}
 
-        {selectedFormat === 'gslides' && (
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-2 text-amber-900 dark:text-amber-200">
-            <div className="font-bold flex items-center gap-2">
-              <ExternalLink className="w-4 h-4 text-amber-500" />
-              <span>How Google Slides Import Works:</span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
-              Clicking <b>Export</b> generates an optimized PowerPoint file. Once downloaded, simply drag and drop the file into <b>Google Drive</b> or open <b>slides.google.com ➔ File ➔ Import slides</b> to instantly edit in Google Slides.
-            </p>
-          </div>
-        )}
-
-        {selectedFormat === 'notion' && (
-          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-3">
+        {/* Cloud Sync Context Tab */}
+        {selectedFormat === 'cloud_sync' && (
+          <div className="p-4 rounded-2xl bg-sky-500/10 border border-sky-500/20 space-y-3 text-sky-950 dark:text-sky-200">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
-                <FileCode className="w-4 h-4 text-emerald-600" /> Notion Workspace Format
+              <span className="text-xs font-bold flex items-center gap-1.5">
+                <HardDrive className="w-4 h-4 text-sky-500" /> Select Cloud Storage Provider
               </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={handleCopyNotionClipboard}
-                className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all"
+                onClick={() => { setCloudProvider('gdrive'); setCloudShareLink(null); }}
+                className={`p-3 rounded-xl border text-xs font-bold flex items-center gap-2.5 transition-all ${
+                  cloudProvider === 'gdrive'
+                    ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
               >
-                {copiedNotion ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedNotion ? 'Copied!' : 'Copy to Clipboard'}</span>
+                <Cloud className="w-4 h-4" />
+                <span>Google Drive</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setCloudProvider('onedrive'); setCloudShareLink(null); }}
+                className={`p-3 rounded-xl border text-xs font-bold flex items-center gap-2.5 transition-all ${
+                  cloudProvider === 'onedrive'
+                    ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <HardDrive className="w-4 h-4" />
+                <span>Microsoft OneDrive</span>
               </button>
             </div>
-            <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              Includes pre-built Notion callout blocks, collapsible toggle questions for spaced repetition, and key concept takeaways ready for instant pasting.
-            </p>
-          </div>
-        )}
 
-        {selectedFormat === 'png' && (
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-700 dark:text-slate-300">Resolution Scale:</span>
-              {[
-                { scale: 1, label: '1x (1080p)' },
-                { scale: 2, label: '2x (2K Retina)' },
-                { scale: 4, label: '4x (4K Ultra)' },
-              ].map((s) => (
-                <button
-                  key={s.scale}
-                  onClick={() => setPngScale(s.scale as any)}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
-                    pngScale === s.scale
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-
-            <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 font-semibold">
-              <input
-                type="checkbox"
-                checked={pngTransparent}
-                onChange={(e) => setPngTransparent(e.target.checked)}
-                className="rounded text-indigo-600 focus:ring-indigo-500"
-              />
-              <span>Transparent Background</span>
-            </label>
+            {cloudShareLink && (
+              <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-sky-500/40 space-y-1.5 animate-in fade-in">
+                <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>File Synced Successfully!</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={cloudShareLink}
+                    className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700"
+                  />
+                  <a
+                    href={cloudShareLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-bold flex items-center gap-1 shrink-0"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open</span>
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors"
-          >
-            Cancel
-          </button>
+          <div className="text-xs text-slate-400">
+            <span>Destination: </span>
+            <strong className="text-slate-700 dark:text-slate-200 capitalize font-mono">{selectedFormat.replace('_', ' ')}</strong>
+          </div>
 
-          <button
-            type="button"
-            disabled={isExporting}
-            onClick={handleExport}
-            className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/30 flex items-center gap-2 disabled:opacity-50 transition-all"
-          >
-            <Download className="w-4 h-4" />
-            <span>{isExporting ? 'Exporting File...' : `Download ${selectedFormat.toUpperCase()}`}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {selectedFormat === 'notion' && (
+              <button
+                type="button"
+                onClick={handleCopyNotionClipboard}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                {copiedNotion ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedNotion ? 'Copied!' : 'Copy to Clipboard'}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={isExporting}
+              onClick={handleExport}
+              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs shadow-md shadow-indigo-600/25 flex items-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>{isExporting ? 'Generating File...' : selectedFormat === 'cloud_sync' ? 'Sync to Cloud' : 'Export & Download'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </Modal>

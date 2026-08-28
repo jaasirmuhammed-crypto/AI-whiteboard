@@ -16,6 +16,7 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  avatar?: string;
   avatarUrl?: string;
   preferredLanguage: string;
   preferredTheme: 'light' | 'dark' | 'system';

@@ -24,9 +24,12 @@ import {
   LayoutTemplate,
   HelpCircle,
   Wand2,
-  Mic
+  Mic,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useI18n } from '../../i18n';
 import { Modal } from '../common/Modal';
 import { TopicSearchGuideCard } from '../common/TopicSearchGuideCard';
@@ -86,6 +89,7 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
   quotaRemaining = 5,
 }) => {
   const { currentProject, updateProjectTitle, autoSaveState, lastSavedTime, forceSaveNow, setCurrentView, activeStudyMaterials } = useProject();
+  const { theme, toggleTheme } = useTheme();
   const { t } = useI18n();
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -393,10 +397,21 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
           <span>{t.whiteboard.stopAndProcess}</span>
         </button>
 
+        {/* Eye Strain / Night Mode Toggle */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+          title={theme === 'dark' ? 'Switch to Light Mode (Sun)' : 'Switch to Night Mode (Reduced Eye Strain)'}
+          aria-label="Toggle Night Mode"
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+        </button>
+
         {/* AI Key & Settings */}
         <button
           onClick={onOpenAISettings}
-          className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+          className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
           title="AI & API Settings"
         >
           <Settings2 className="w-4 h-4" />

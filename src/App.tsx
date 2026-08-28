@@ -14,6 +14,7 @@ import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 import { OfflineBanner } from './components/common/OfflineBanner';
 import { AccessibilityModal } from './components/common/AccessibilityModal';
+import { MobileBottomNav } from './components/common/MobileBottomNav';
 
 // Landing Page & Marketing Components (Loaded immediately for fast First Contentful Paint)
 import { HeroSection } from './components/landing/HeroSection';
@@ -66,6 +67,8 @@ import { AnalyticsModal } from './components/common/AnalyticsModal';
 import { QuotaUsageModal } from './components/common/QuotaUsageModal';
 import { TokensExhaustedModal } from './components/common/TokensExhaustedModal';
 import { OnboardingTourModal } from './components/common/OnboardingTourModal';
+import { SessionTimeoutWarningModal } from './components/auth/SessionTimeoutWarningModal';
+import { KeyboardShortcutsModal } from './components/whiteboard/KeyboardShortcutsModal';
 import { telemetryService } from './services/telemetryService';
 import { Exam } from './types/competitive';
 import { CompetitiveService } from './services/competitiveService';
@@ -883,10 +886,13 @@ const MainAppContent: React.FC = () => {
         onConfirm={() => canvasRef.current?.clearCanvas()}
       />
 
-      <ShortcutsModal
+      <KeyboardShortcutsModal
         isOpen={shortcutsModalOpen}
         onClose={() => setShortcutsModalOpen(false)}
       />
+
+      {/* 🛡️ Inactivity & Idle Session Timeout Warning */}
+      <SessionTimeoutWarningModal idleTimeoutMinutes={20} warningDurationSeconds={60} />
 
       {/* Undo History Visual Timeline Modal */}
       <UndoHistoryTimelineModal
@@ -1065,6 +1071,9 @@ const MainAppContent: React.FC = () => {
           showToast(`Welcome! Workspace customized for ${prefs.studyCategory.replace('_', ' ')}.`, 'success');
         }}
       />
+
+      {/* 📱 Persistent Mobile Bottom Navigation Bar (Home, Whiteboard, Create, Dashboard, Exams) */}
+      <MobileBottomNav onOpenLogin={() => setLoginOpen(true)} />
 
       {/* ♿ Global WCAG 2.1 Accessibility & Assistive Settings Modal */}
       <AccessibilityModal />
