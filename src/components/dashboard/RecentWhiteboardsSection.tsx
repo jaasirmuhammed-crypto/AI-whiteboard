@@ -14,28 +14,46 @@ import {
   HelpCircle,
   Network,
   FolderPlus,
-  ArrowUpDown
+  ArrowUpDown,
+  Edit2,
+  CheckCircle2
 } from 'lucide-react';
 import { WhiteboardProject } from '../../types/user';
 import { useProject } from '../../context/ProjectContext';
 import { useToast } from '../common/Toast';
 import { EmptyState } from '../common/EmptyState';
+import { RenameProjectModal } from './RenameProjectModal';
 
 interface RecentWhiteboardsSectionProps {
   onOpenCreateModal: () => void;
   onOpenNoteDetail?: (proj: WhiteboardProject) => void;
 }
 
+export const formatRelativeTime = (isoString?: string): string => {
+  if (!isoString) return 'Just now';
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d ago`;
+  return new Date(isoString).toLocaleDateString();
+};
+
 export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> = ({ 
   onOpenCreateModal,
   onOpenNoteDetail
 }) => {
-  const { projects, loadProject, deleteProject, createProject } = useProject();
+  const { projects, loadProject, deleteProject, duplicateProject } = useProject();
   const { showToast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<'updated' | 'title' | 'elements'>('updated');
+  const [renameTarget, setRenameTarget] = useState<WhiteboardProject | null>(null);
 
   const filteredProjects = projects
     .filter((p) => p.title.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -46,14 +64,14 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
     });
 
   const handleDelete = (id: string, title: string) => {
-    if (window.confirm(`Delete notebook "${title}"?`)) {
+    if (window.confirm(`Are you sure you want to delete "${title}"? This cannot be undone.`)) {
       deleteProject(id);
       showToast('Notebook deleted.', 'info');
     }
   };
 
   const handleDuplicate = (project: WhiteboardProject) => {
-    const copy = createProject(`${project.title} (Copy)`, project.backgroundPattern);
+    const copy = duplicateProject(project.id);
     showToast(`Duplicated into "${copy.title}"`, 'success');
   };
 
@@ -171,16 +189,30 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
 
                     {/* Title & Metadata */}
                     <div>
-                      <h4 
-                        onClick={() => loadProject(project.id)}
-                        className="text-base font-bold text-slate-900 dark:text-white font-brand truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors cursor-pointer"
-                      >
-                        {project.title}
-                      </h4>
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 
+                          onClick={() => loadProject(project.id)}
+                          className="text-base font-bold text-slate-900 dark:text-white font-brand truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors cursor-pointer"
+                        >
+                          {project.title}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenameTarget(project);
+                          }}
+                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                          title="Rename Notebook"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
                       <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
                         <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {new Date(project.updatedAt).toLocaleDateString()}
+                          <Clock className="w-3 h-3 text-indigo-400" />
+                          <span>{formatRelativeTime(project.updatedAt)}</span>
                         </span>
                         <span>{project.elements?.length || 0} elements</span>
                       </div>
@@ -214,6 +246,14 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                       <span>Open Canvas</span>
+                    </button>
+
+                    <button
+                      onClick={() => setRenameTarget(project)}
+                      className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                      title="Rename Whiteboard"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
                     </button>
 
                     <button
@@ -259,7 +299,7 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
                       <span>•</span>
                       <span>Pattern: {project.backgroundPattern || 'ruled'}</span>
                       <span>•</span>
-                      <span>Modified: {new Date(project.updatedAt).toLocaleDateString()}</span>
+                      <span>Edited: {formatRelativeTime(project.updatedAt)}</span>
                     </p>
                   </div>
                 </div>
@@ -271,6 +311,13 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Open</span>
+                  </button>
+                  <button
+                    onClick={() => setRenameTarget(project)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                    title="Rename"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleDuplicate(project)}
@@ -302,6 +349,13 @@ export const RecentWhiteboardsSection: React.FC<RecentWhiteboardsSectionProps> =
         />
       )}
 
+      {/* Rename Notebook Modal */}
+      <RenameProjectModal
+        isOpen={!!renameTarget}
+        onClose={() => setRenameTarget(null)}
+        projectId={renameTarget?.id || null}
+        initialTitle={renameTarget?.title || ''}
+      />
     </div>
   );
 };

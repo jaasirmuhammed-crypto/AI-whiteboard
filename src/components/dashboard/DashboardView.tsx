@@ -75,7 +75,7 @@ export const DashboardView: React.FC = () => {
 
   const tabs: { id: DashboardTab; label: string; icon: any; count?: number; badgeColor?: string }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'whiteboards', label: 'Recent Whiteboards', icon: BookOpen, count: totalNotebooks, badgeColor: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
+    { id: 'whiteboards', label: 'My Whiteboards', icon: BookOpen, count: totalNotebooks, badgeColor: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
     { id: 'notes', label: 'Saved Notes', icon: FileText, count: totalNotes, badgeColor: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' },
     { id: 'ppts', label: 'Generated PPTs', icon: Presentation, count: totalPPTs, badgeColor: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
     { id: 'quizzes', label: 'Generated Quizzes', icon: HelpCircle, count: totalQuizzes, badgeColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },

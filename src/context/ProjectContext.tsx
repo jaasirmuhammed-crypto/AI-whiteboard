@@ -31,6 +31,8 @@ interface ProjectContextType {
   loadProject: (projectId: string) => void;
   updateCurrentProjectElements: (elements: WhiteboardElement[], thumbnail?: string) => void;
   updateProjectTitle: (title: string) => void;
+  renameProject: (projectId: string, newTitle: string) => void;
+  duplicateProject: (projectId: string) => WhiteboardProject;
   updateBackgroundPattern: (pattern: BackgroundPattern) => void;
   setGeneratedMaterials: (pkg: StudyMaterialsPackage) => void;
   deleteProject: (projectId: string) => void;
@@ -193,6 +195,40 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setProjects(StorageService.getProjects());
   };
 
+  const renameProject = (projectId: string, newTitle: string) => {
+    const proj = projects.find(p => p.id === projectId) || StorageService.getProjectById(projectId);
+    if (!proj) return;
+    const updated: WhiteboardProject = {
+      ...proj,
+      title: newTitle.trim() || proj.title,
+      updatedAt: new Date().toISOString(),
+    };
+    StorageService.saveProject(updated);
+    setProjects(StorageService.getProjects());
+    if (currentProject?.id === projectId) {
+      setCurrentProject(updated);
+    }
+  };
+
+  const duplicateProject = (projectId: string): WhiteboardProject => {
+    const sourceProj = projects.find(p => p.id === projectId) || StorageService.getProjectById(projectId) || currentProject;
+    const clonedTitle = sourceProj ? `${sourceProj.title} (Copy)` : `Notebook #${projects.length + 1}`;
+    const duplicated: WhiteboardProject = {
+      id: 'proj_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      userId: user?.id || 'guest_user',
+      title: clonedTitle,
+      elements: sourceProj ? JSON.parse(JSON.stringify(sourceProj.elements)) : [],
+      backgroundPattern: sourceProj?.backgroundPattern || 'ruled',
+      thumbnailDataUrl: sourceProj?.thumbnailDataUrl,
+      studyMaterials: sourceProj?.studyMaterials ? JSON.parse(JSON.stringify(sourceProj.studyMaterials)) : undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    StorageService.saveProject(duplicated);
+    setProjects(StorageService.getProjects());
+    return duplicated;
+  };
+
   const deleteProject = (projectId: string) => {
     StorageService.deleteProject(projectId);
     const remaining = StorageService.getProjects();
@@ -220,6 +256,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         loadProject,
         updateCurrentProjectElements,
         updateProjectTitle,
+        renameProject,
+        duplicateProject,
         updateBackgroundPattern,
         setGeneratedMaterials,
         deleteProject,

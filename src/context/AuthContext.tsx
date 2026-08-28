@@ -1,19 +1,46 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { UserProfile, AuthState } from '../types/user';
+import { UserProfile, AuthState, UserSession } from '../types/user';
 import { PaymentService, FIXED_PREMIUM_PRICE_INR } from '../services/paymentService';
 import { AnalyticsTrackingService } from '../services/analyticsTrackingService';
 
 interface AuthContextType extends AuthState {
-  login: (email: string, name?: string) => Promise<boolean>;
+  login: (email: string, password?: string, name?: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<boolean>;
   register: (name: string, email: string, password?: string) => Promise<boolean>;
+  sendPasswordReset: (email: string) => Promise<boolean>;
   guestLogin: () => void;
   logout: () => void;
+  logoutAllDevices: () => void;
   deductToken: () => boolean;
   upgradeToPremium: (paymentId?: string) => void;
   isPremium: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const getCurrentDeviceSession = (): UserSession => {
+  const userAgent = navigator.userAgent;
+  let browser = 'Chrome';
+  if (userAgent.includes('Firefox')) browser = 'Firefox';
+  else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) browser = 'Safari';
+  else if (userAgent.includes('Edg')) browser = 'Edge';
+
+  let os = 'Windows';
+  if (userAgent.includes('Macintosh')) os = 'macOS';
+  else if (userAgent.includes('Linux')) os = 'Linux';
+  else if (userAgent.includes('Android')) os = 'Android';
+  else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+
+  return {
+    id: 'sess_' + Date.now(),
+    deviceName: `${os} PC (${browser})`,
+    browser,
+    os,
+    ipAddress: '127.0.0.1 (Local Verified)',
+    lastActiveAt: new Date().toISOString(),
+    isCurrent: true,
+  };
+};
 
 const DEMO_USER: UserProfile = {
   id: 'guest_student_01',
@@ -25,6 +52,8 @@ const DEMO_USER: UserProfile = {
   plan: 'free',
   tokensRemaining: 5,
   subscriptionStatus: 'inactive',
+  authMethod: 'guest',
+  sessions: [getCurrentDeviceSession()],
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -46,6 +75,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user.tokensRemaining = user.tokensRemaining !== undefined ? user.tokensRemaining : 5;
           user.subscriptionStatus = 'inactive';
         }
+        if (!user.sessions || user.sessions.length === 0) {
+          user.sessions = [getCurrentDeviceSession()];
+        }
         return {
           user,
           isAuthenticated: true,
@@ -63,13 +95,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const saveAuth = (user: UserProfile, token: string) => {
-    const state = { user, isAuthenticated: true, token };
+    const currentSession = getCurrentDeviceSession();
+    const existingSessions = user.sessions || [];
+    const updatedSessions = [
+      currentSession,
+      ...existingSessions.filter(s => s.id !== currentSession.id).map(s => ({ ...s, isCurrent: false })),
+    ].slice(0, 5);
+
+    const updatedUser = { ...user, sessions: updatedSessions };
+    const state = { user: updatedUser, isAuthenticated: true, token };
     setAuthState(state);
-    localStorage.setItem('ai_whiteboard_auth', JSON.stringify({ user, token }));
-    PaymentService.saveRegisteredUser(user);
+    localStorage.setItem('ai_whiteboard_auth', JSON.stringify({ user: updatedUser, token }));
+    PaymentService.saveRegisteredUser(updatedUser);
   };
 
-  const login = async (email: string, name?: string): Promise<boolean> => {
+  const login = async (email: string, password?: string, name?: string): Promise<boolean> => {
     const sub = PaymentService.getSubscriptions().find((s) => s.userEmail === email && s.status === 'active');
     const isPrem = !!sub;
 
@@ -84,17 +124,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tokensRemaining: isPrem ? 999999 : 5,
       subscriptionStatus: isPrem ? 'active' : 'inactive',
       subscriptionExpiresAt: sub?.expiresAt,
+      authMethod: 'email',
     };
     saveAuth(user, 'jwt_token_' + Date.now());
     AnalyticsTrackingService.trackEvent('USER_LOGIN', {
       userId: user.id,
       userEmail: user.email,
       userName: user.name,
+      metadata: { method: 'email' },
     });
     return true;
   };
 
-  const register = async (name: string, email: string): Promise<boolean> => {
+  const loginWithGoogle = async (): Promise<boolean> => {
+    // Simulate real Google OAuth identity payload with high reliability
+    const googleEmail = 'scholar.google@gmail.com';
+    const googleName = 'Scholar Google User';
+    const sub = PaymentService.getSubscriptions().find((s) => s.userEmail === googleEmail && s.status === 'active');
+    const isPrem = !!sub;
+
+    const user: UserProfile = {
+      id: 'usr_g_' + Date.now(),
+      name: googleName,
+      email: googleEmail,
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      preferredLanguage: 'en',
+      preferredTheme: 'light',
+      createdAt: new Date().toISOString(),
+      plan: isPrem ? 'premium' : 'free',
+      tokensRemaining: isPrem ? 999999 : 5,
+      subscriptionStatus: isPrem ? 'active' : 'inactive',
+      subscriptionExpiresAt: sub?.expiresAt,
+      authMethod: 'google',
+    };
+    saveAuth(user, 'google_oauth_token_' + Date.now());
+    AnalyticsTrackingService.trackEvent('USER_LOGIN', {
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+      metadata: { method: 'google' },
+    });
+    return true;
+  };
+
+  const register = async (name: string, email: string, password?: string): Promise<boolean> => {
     const user: UserProfile = {
       id: 'usr_' + Date.now(),
       name,
@@ -105,12 +178,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       plan: 'free',
       tokensRemaining: 5,
       subscriptionStatus: 'inactive',
+      authMethod: 'email',
     };
     saveAuth(user, 'jwt_token_' + Date.now());
     AnalyticsTrackingService.trackEvent('USER_REGISTERED', {
       userId: user.id,
       userEmail: user.email,
       userName: user.name,
+    });
+    return true;
+  };
+
+  const sendPasswordReset = async (email: string): Promise<boolean> => {
+    // Record password reset request in analytics & telemetry
+    AnalyticsTrackingService.trackEvent('SETTINGS_CHANGED' as any, {
+      userEmail: email,
+      metadata: { action: 'PASSWORD_RESET_REQUESTED' },
     });
     return true;
   };
@@ -122,6 +205,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setAuthState({ user: null, isAuthenticated: false, token: null });
     localStorage.removeItem('ai_whiteboard_auth');
+  };
+
+  const logoutAllDevices = () => {
+    if (authState.user) {
+      const revokedUser: UserProfile = {
+        ...authState.user,
+        sessions: [],
+      };
+      PaymentService.saveRegisteredUser(revokedUser);
+    }
+    setAuthState({ user: null, isAuthenticated: false, token: null });
+    localStorage.removeItem('ai_whiteboard_auth');
+    localStorage.removeItem('ai_whiteboard_active_proj_id');
   };
 
   const isPremium = authState.user?.plan === 'premium' && authState.user?.subscriptionStatus === 'active';
@@ -200,9 +296,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         ...authState,
         login,
+        loginWithGoogle,
         register,
+        sendPasswordReset,
         guestLogin,
         logout,
+        logoutAllDevices,
         deductToken,
         upgradeToPremium,
         isPremium,

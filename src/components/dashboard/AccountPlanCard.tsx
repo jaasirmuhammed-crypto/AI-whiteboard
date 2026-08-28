@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { PaymentService, FIXED_PREMIUM_PRICE_INR } from '../../services/paymentService';
 import { useToast } from '../common/Toast';
 import { triggerSubtleConfetti } from '../../utils/confettiUtil';
+import { SessionManagementModal } from '../auth/SessionManagementModal';
 
 interface AccountPlanCardProps {
   onOpenUpgradeModal: () => void;
@@ -26,6 +27,7 @@ export const AccountPlanCard: React.FC<AccountPlanCardProps> = ({ onOpenUpgradeM
   const { user, isPremium, upgradeToPremium } = useAuth();
   const { showToast } = useToast();
 
+  const [showSessionModal, setShowSessionModal] = useState(false);
   const [verifyPayId, setVerifyPayId] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [showVerifyBox, setShowVerifyBox] = useState(false);
@@ -177,38 +179,28 @@ export const AccountPlanCard: React.FC<AccountPlanCardProps> = ({ onOpenUpgradeM
 
       </div>
 
-      {/* Manual Verification Box */}
-      {showVerifyBox && !isPremium && (
-        <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-2.5 animate-in fade-in">
-          <div className="flex items-center justify-between">
-            <h5 className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span>Verify Razorpay Payment ID</span>
-            </h5>
-            <span className="text-[11px] text-slate-500">Auto-instant activation</span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-2">
-            <input
-              type="text"
-              value={verifyPayId}
-              onChange={(e) => setVerifyPayId(e.target.value)}
-              placeholder="e.g., pay_NxK98QweL1234a"
-              className="w-full sm:flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-hidden focus:ring-2 focus:ring-indigo-500"
-            />
-            <button
-              type="button"
-              disabled={isVerifying}
-              onClick={handleVerify}
-              className="w-full sm:w-auto px-4 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
-            >
-              {isVerifying ? <RotateCcw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-              <span>Verify & Activate</span>
-            </button>
-          </div>
+      {/* Session Management & Device Security Bar */}
+      <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <ShieldCheck className="w-4 h-4 text-indigo-500 shrink-0" />
+          <span>Device Security: {user?.sessions?.length || 1} active logged-in device(s)</span>
         </div>
-      )}
 
+        <button
+          type="button"
+          onClick={() => setShowSessionModal(true)}
+          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
+          <span>Manage Active Sessions</span>
+        </button>
+      </div>
+
+      {/* Session Management Modal */}
+      <SessionManagementModal
+        isOpen={showSessionModal}
+        onClose={() => setShowSessionModal(false)}
+      />
     </div>
   );
 };

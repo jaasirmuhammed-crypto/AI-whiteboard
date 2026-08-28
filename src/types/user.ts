@@ -2,6 +2,16 @@ import { WhiteboardElement, BackgroundPattern } from './whiteboard';
 import { StudyMaterialsPackage } from './studyMaterial';
 import { UserPlanType, SubscriptionStatus } from './payment';
 
+export interface UserSession {
+  id: string;
+  deviceName: string;
+  browser: string;
+  os: string;
+  ipAddress: string;
+  lastActiveAt: string;
+  isCurrent: boolean;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -10,6 +20,8 @@ export interface UserProfile {
   preferredLanguage: string;
   preferredTheme: 'light' | 'dark' | 'system';
   createdAt: string;
+  authMethod?: 'email' | 'google' | 'guest';
+  sessions?: UserSession[];
   // Subscription & Token Allowance
   plan: UserPlanType;
   tokensRemaining: number;
