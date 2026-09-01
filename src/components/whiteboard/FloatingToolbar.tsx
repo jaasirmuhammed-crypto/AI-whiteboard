@@ -141,7 +141,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
   return (
     <div 
       ref={toolbarRef}
-      className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center select-none max-w-[calc(100vw-1rem)] px-2"
+      className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center select-none w-full max-w-fit px-2 pointer-events-none"
     >
       <input
         type="file"
@@ -155,7 +155,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
 
       {/* 🖌️ Pens & Brushes Popover */}
       {activePopover === 'pens' && (
-        <div className="mb-3 p-3 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-2xl backdrop-blur-2xl w-64 space-y-2.5 animate-in fade-in slide-in-from-bottom-2">
+        <div className="pointer-events-auto mb-3 p-3 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-2xl backdrop-blur-2xl w-64 space-y-2.5 animate-in fade-in slide-in-from-bottom-2">
           <div className="flex items-center justify-between">
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Pen & Brush Type
@@ -212,7 +212,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
 
       {/* 🎨 Color Picker Popover */}
       {activePopover === 'color' && (
-        <div className="mb-3 animate-in fade-in slide-in-from-bottom-2">
+        <div className="pointer-events-auto mb-3 animate-in fade-in slide-in-from-bottom-2">
           <ColorPicker
             currentColor={props.color}
             onColorChange={(newColor) => {
@@ -225,7 +225,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
 
       {/* 📏 Stroke Thickness Popover */}
       {activePopover === 'stroke' && (
-        <div className="mb-3 p-4 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-2xl backdrop-blur-2xl w-64 space-y-4 animate-in fade-in slide-in-from-bottom-2">
+        <div className="pointer-events-auto mb-3 p-4 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-2xl backdrop-blur-2xl w-64 space-y-4 animate-in fade-in slide-in-from-bottom-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Stroke Width
@@ -278,7 +278,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
 
       {/* 📝 Text Typography Popover */}
       {activePopover === 'text' && (
-        <div className="mb-3 animate-in fade-in slide-in-from-bottom-2">
+        <div className="pointer-events-auto mb-3 animate-in fade-in slide-in-from-bottom-2">
           <FontPanel
             currentFont={props.fontFamily}
             fontSize={props.fontSize}
@@ -298,7 +298,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
 
       {/* 🔷 Shapes Popover */}
       {activePopover === 'shape' && (
-        <div className="mb-3 animate-in fade-in slide-in-from-bottom-2">
+        <div className="pointer-events-auto mb-3 animate-in fade-in slide-in-from-bottom-2">
           <ShapeSelector
             currentShape={props.activeShape}
             onSelectShape={(shape) => {
@@ -310,7 +310,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
       )}
 
       {/* 🚀 Main Glassmorphism Floating Dock */}
-      <div className="flex items-center gap-1 sm:gap-1.5 p-1.5 rounded-2xl sm:rounded-3xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xl shadow-slate-900/10">
+      <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 p-1.5 rounded-2xl sm:rounded-3xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xl shadow-slate-900/10">
         
         {/* 1. 🖌️ Pen & Brush Group */}
         <button

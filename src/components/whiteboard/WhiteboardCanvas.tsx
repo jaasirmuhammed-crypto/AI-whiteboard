@@ -1408,7 +1408,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full overflow-hidden select-none bg-slate-50 dark:bg-slate-950 will-change-transform transform-gpu touch-none"
+      className="relative w-full max-w-full flex-1 min-h-0 h-full overflow-hidden select-none bg-slate-50 dark:bg-slate-950 will-change-transform transform-gpu touch-none flex flex-col items-center"
       style={{
         cursor: cursorStyle,
         contain: 'layout paint size',
@@ -1428,6 +1428,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasRef, WhiteboardCanvas
         onWheel={handleWheel}
         className="w-full h-full block touch-none transform-gpu select-none"
         style={{
+          width: '100%',
+          height: '100%',
+          maxWidth: '100%',
+          maxHeight: '100%',
+          display: 'block',
           transform: 'translate3d(0, 0, 0)',
           backfaceVisibility: 'hidden',
           touchAction: 'none',

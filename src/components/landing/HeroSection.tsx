@@ -22,12 +22,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartWriting }) => {
   const { setCurrentView } = useProject();
 
   return (
-    <section className="relative pt-12 pb-20 lg:pt-20 lg:pb-28 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+    <section className="relative pt-6 pb-14 sm:pt-12 sm:pb-20 lg:pt-20 lg:pb-28 overflow-hidden w-full flex justify-center">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center justify-items-center lg:justify-items-stretch">
           
           {/* Left Column: Copy & Actions */}
-          <div className="lg:col-span-6 space-y-6 text-center lg:text-left z-10 flex flex-col items-center lg:items-start">
+          <div className="w-full max-w-xl mx-auto lg:max-w-none lg:col-span-6 space-y-6 text-center lg:text-left z-10 flex flex-col items-center lg:items-start">
             {/* Pill Badge */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/70 dark:bg-indigo-950/40 backdrop-blur-md shadow-xs animate-subtle-float">
               <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -37,7 +37,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartWriting }) => {
             </div>
 
             {/* Main Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold font-brand tracking-tight text-slate-900 dark:text-white leading-[1.12]">
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold font-brand tracking-tight text-slate-900 dark:text-white leading-[1.15] text-center lg:text-left">
               {t.hero.title}{' '}
               <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent">
                 {t.hero.titleHighlight}
@@ -45,12 +45,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartWriting }) => {
             </h1>
 
             {/* Subtitle */}
-            <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+            <p className="text-sm sm:text-lg text-slate-600 dark:text-slate-300 max-w-lg mx-auto lg:mx-0 leading-relaxed text-center lg:text-left">
               {t.hero.subtitle}
             </p>
 
             {/* CTA Buttons */}
-            <div className="w-full flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
+            <div className="w-full max-w-md mx-auto lg:mx-0 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 sm:gap-4 pt-2">
               <button
                 onClick={onStartWriting}
                 className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm sm:text-base shadow-xl shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-3 group cursor-pointer"
@@ -70,7 +70,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartWriting }) => {
             </div>
 
             {/* Quick Metrics / Guarantees */}
-            <div className="w-full pt-6 border-t border-slate-200/60 dark:border-slate-800/60 flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
+            <div className="w-full max-w-lg mx-auto lg:mx-0 pt-6 border-t border-slate-200/60 dark:border-slate-800/60 flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{t.hero.zeroLatency || 'Zero Latency Drawing'}</span>

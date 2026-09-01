@@ -26,7 +26,7 @@ export const ViewControls: React.FC<ViewControlsProps> = ({
   const { t } = useI18n();
 
   return (
-    <div className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 z-30 flex items-center gap-1 p-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-xl scale-90 sm:scale-100 origin-bottom-right">
+    <div className="fixed bottom-36 sm:bottom-6 right-2 sm:right-6 z-30 flex items-center gap-1 p-1 sm:p-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-xl scale-90 sm:scale-100 origin-bottom-right">
       {/* Pan Tool */}
       <button
         onClick={onTogglePanMode}

@@ -393,7 +393,42 @@ export const LiveWaveBackground: React.FC = () => {
         ctx.fillStyle = grad;
         ctx.fill();
 
-        // Sleek Glowing Crest Outline
+        // Sleek Glowing Crest Outline (Only the top wave curve line, avoiding closed box side borders)
+        ctx.beginPath();
+        for (let x = 0; x <= width; x += sampleStep) {
+          let y =
+            Math.sin(x * wave.frequency + step * wave.speed) * wave.amplitude +
+            Math.cos(x * wave.frequency * 0.7 + step * 0.7) * (wave.amplitude * 0.35) +
+            wave.yOffset;
+
+          if (mouse.active && !prefersReducedMotion) {
+            const dx = x - mouse.x;
+            const dy = y - mouse.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 300) {
+              const pullFactor = (1 - dist / 300) * 26;
+              const angle = Math.atan2(dy, dx);
+              y += Math.sin(angle) * pullFactor;
+            }
+          }
+
+          shockwaves.forEach((sw) => {
+            const dx = x - sw.x;
+            const dy = y - sw.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const waveDiff = Math.abs(dist - sw.radius);
+            if (waveDiff < 45) {
+              const rippleStrength = (1 - waveDiff / 45) * (sw.alpha * 16);
+              y += Math.sin(waveDiff * 0.15) * rippleStrength;
+            }
+          });
+
+          if (x === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
         ctx.strokeStyle = wave.strokeColor;
         ctx.lineWidth = 1.8;
         ctx.stroke();

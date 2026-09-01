@@ -523,7 +523,7 @@ const MainAppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
+    <div className="w-full max-w-full min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200 overflow-x-hidden">
       {/* ♿ WCAG 2.1 Skip Link for Keyboard & Screen Readers */}
       <a href="#main-content" className="skip-to-content">
         Skip to Main Content
@@ -553,7 +553,7 @@ const MainAppContent: React.FC = () => {
       />
 
       {/* Main View Router */}
-      <main id="main-content" className="flex-1 relative z-10 w-full overflow-x-hidden flex flex-col items-center" role="main">
+      <main id="main-content" className="flex-1 w-full max-w-full relative z-10 overflow-x-hidden flex flex-col items-center" role="main">
         {currentView === 'landing' && (
           <div className="w-full">
             <HeroSection onStartWriting={handleStartWriting} />
@@ -706,7 +706,7 @@ const MainAppContent: React.FC = () => {
         </Suspense>
 
         {currentView === 'whiteboard' && (
-          <div className="relative w-full h-[calc(100vh-64px)] flex flex-col overflow-hidden">
+          <div className="relative w-full max-w-full flex-1 h-[calc(100dvh-64px)] md:h-[calc(100vh-64px)] flex flex-col overflow-hidden">
             {/* Top Whiteboard Control Bar with all core feature triggers */}
             <TopControlBar
               canUndo={canvasRef.current?.canUndo || false}

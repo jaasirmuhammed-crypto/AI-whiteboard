@@ -21,10 +21,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenLogin })
   };
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-3 pb-3 pointer-events-none">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-3 pb-3 pointer-events-none flex justify-center w-full max-w-full">
       <nav 
         aria-label="Mobile Navigation"
-        className="pointer-events-auto max-w-md mx-auto rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xl shadow-slate-900/20 px-3 py-2 flex items-center justify-around"
+        className="pointer-events-auto w-full max-w-md mx-auto rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xl shadow-slate-900/20 px-3 py-2 flex items-center justify-around"
       >
         {/* 1. Home */}
         <button

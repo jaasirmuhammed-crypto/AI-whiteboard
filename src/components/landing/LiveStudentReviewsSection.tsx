@@ -80,45 +80,57 @@ export const LiveStudentReviewsSection: React.FC = () => {
 
   const allReviews = liveReviews.length > 0 ? [...liveReviews, ...verifiedDefaultReviews] : verifiedDefaultReviews;
 
-  const renderReviewCard = (rev: UserReview) => (
-    <div
-      key={rev.id}
-      className="w-[320px] sm:w-[360px] shrink-0 p-6 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 shadow-lg space-y-4 hover:border-indigo-500/50 hover:shadow-2xl transition-all duration-300 group text-left"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 text-amber-400">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <Star
-              key={star}
-              className={`w-3.5 h-3.5 ${star <= rev.rating ? 'fill-amber-400' : 'text-slate-300 dark:text-slate-700'}`}
-            />
-          ))}
+  const reviewColorPalettes = [
+    { border: 'hover:border-indigo-500/60', glow: 'hover:shadow-indigo-500/20', badge: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' },
+    { border: 'hover:border-purple-500/60', glow: 'hover:shadow-purple-500/20', badge: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' },
+    { border: 'hover:border-emerald-500/60', glow: 'hover:shadow-emerald-500/20', badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+    { border: 'hover:border-amber-500/60', glow: 'hover:shadow-amber-500/20', badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+    { border: 'hover:border-cyan-500/60', glow: 'hover:shadow-cyan-500/20', badge: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' },
+    { border: 'hover:border-rose-500/60', glow: 'hover:shadow-rose-500/20', badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
+  ];
+
+  const renderReviewCard = (rev: UserReview, idx: number = 0) => {
+    const palette = reviewColorPalettes[idx % reviewColorPalettes.length];
+    return (
+      <div
+        key={rev.id}
+        className={`w-[320px] sm:w-[360px] shrink-0 p-6 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 shadow-lg space-y-4 ${palette.border} ${palette.glow} hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group text-left backdrop-blur-md`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1 text-amber-400">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star
+                key={star}
+                className={`w-3.5 h-3.5 ${star <= rev.rating ? 'fill-amber-400' : 'text-slate-300 dark:text-slate-700'}`}
+              />
+            ))}
+          </div>
+
+          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${palette.badge}`}>
+            <CheckCircle2 className="w-3 h-3" /> Verified Student
+          </span>
         </div>
 
-        <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
-          <CheckCircle2 className="w-3 h-3" /> Verified Student
-        </span>
-      </div>
+        <div className="space-y-1.5">
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white font-brand line-clamp-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+            {rev.title || 'Student Review'}
+          </h4>
+          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed italic line-clamp-3 group-hover:line-clamp-none transition-all">
+            "{rev.message}"
+          </p>
+        </div>
 
-      <div className="space-y-1.5">
-        <h4 className="text-sm font-bold text-slate-900 dark:text-white font-brand line-clamp-1">
-          {rev.title || 'Student Review'}
-        </h4>
-        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed italic line-clamp-3 group-hover:line-clamp-none transition-all">
-          "{rev.message}"
-        </p>
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+          <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+            {rev.userName}
+          </span>
+          <span className="text-[10px] font-mono text-slate-400">
+            {rev.createdAt}
+          </span>
+        </div>
       </div>
-
-      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
-          {rev.userName}
-        </span>
-        <span className="text-[10px] font-mono text-slate-400">
-          {rev.createdAt}
-        </span>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <section className="relative py-16 sm:py-24 bg-slate-50/50 dark:bg-slate-900/50 border-y border-slate-200/60 dark:border-slate-800/60 overflow-hidden" aria-labelledby="community-reviews-title">
@@ -151,11 +163,11 @@ export const LiveStudentReviewsSection: React.FC = () => {
         {/* Infinite Continuous Sliding Carousel of Reviews */}
         <div className="space-y-6">
           <InfiniteCarousel direction="left" speedSeconds={38} gap="gap-6">
-            {allReviews.slice(0, Math.ceil(allReviews.length / 2) + 1).map((rev) => renderReviewCard(rev))}
+            {allReviews.slice(0, Math.ceil(allReviews.length / 2) + 1).map((rev, i) => renderReviewCard(rev, i))}
           </InfiniteCarousel>
 
           <InfiniteCarousel direction="right" speedSeconds={42} gap="gap-6">
-            {allReviews.slice(Math.floor(allReviews.length / 2)).map((rev) => renderReviewCard(rev))}
+            {allReviews.slice(Math.floor(allReviews.length / 2)).map((rev, i) => renderReviewCard(rev, i + 3))}
           </InfiniteCarousel>
         </div>
 
