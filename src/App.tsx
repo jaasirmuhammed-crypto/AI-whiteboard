@@ -30,6 +30,7 @@ import { DemoWhiteboard } from './components/landing/DemoWhiteboard';
 import { LiveStudentReviewsSection } from './components/landing/LiveStudentReviewsSection';
 import { FAQSection } from './components/landing/FAQSection';
 import { CTASection } from './components/landing/CTASection';
+import { InfiniteFeaturesBanner } from './components/landing/InfiniteFeaturesBanner';
 
 // Auth Modals
 import { LoginModal } from './components/auth/LoginModal';
@@ -552,10 +553,11 @@ const MainAppContent: React.FC = () => {
       />
 
       {/* Main View Router */}
-      <main id="main-content" className="flex-1 relative z-10" role="main">
+      <main id="main-content" className="flex-1 relative z-10 w-full overflow-x-hidden flex flex-col items-center" role="main">
         {currentView === 'landing' && (
-          <div>
+          <div className="w-full">
             <HeroSection onStartWriting={handleStartWriting} />
+            <InfiniteFeaturesBanner />
 
             {/* Video Tutorial & Interactive Masterclass Section */}
             <VideoTutorialSection onStartWriting={handleStartWriting} />

@@ -27,7 +27,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartWriting }) => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
           
           {/* Left Column: Copy & Actions */}
-          <div className="lg:col-span-6 space-y-6 text-center lg:text-left z-10">
+          <div className="lg:col-span-6 space-y-6 text-center lg:text-left z-10 flex flex-col items-center lg:items-start">
             {/* Pill Badge */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/70 dark:bg-indigo-950/40 backdrop-blur-md shadow-xs animate-subtle-float">
               <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -50,10 +50,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartWriting }) => {
             </p>
 
             {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
+            <div className="w-full flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
               <button
                 onClick={onStartWriting}
-                className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm sm:text-base shadow-xl shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-3 group"
+                className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm sm:text-base shadow-xl shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-3 group cursor-pointer"
               >
                 <PenTool className="w-5 h-5 text-indigo-200 group-hover:rotate-12 transition-transform" />
                 <span>{t.hero.startWriting}</span>
@@ -62,7 +62,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartWriting }) => {
 
               <a
                 href="#how-it-works"
-                className="w-full sm:w-auto px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 font-semibold text-sm sm:text-base backdrop-blur-md transition-colors flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 font-semibold text-sm sm:text-base backdrop-blur-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Play className="w-4 h-4 text-indigo-500 fill-indigo-500" />
                 <span>{t.hero.howItWorks}</span>
@@ -70,24 +70,24 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartWriting }) => {
             </div>
 
             {/* Quick Metrics / Guarantees */}
-            <div className="pt-6 border-t border-slate-200/60 dark:border-slate-800/60 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
+            <div className="w-full pt-6 border-t border-slate-200/60 dark:border-slate-800/60 flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{t.hero.zeroLatency || 'Zero Latency Drawing'}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-indigo-500" />
+                <CheckCircle2 className="w-4 h-4 text-indigo-500 shrink-0" />
                 <span>{t.hero.pptxPdfMindmap || 'PPTX, PDF & Mind Map'}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-purple-500" />
+                <CheckCircle2 className="w-4 h-4 text-purple-500 shrink-0" />
                 <span>{t.hero.languagesSupported || '15 Languages Supported'}</span>
               </div>
             </div>
           </div>
 
           {/* Right Column: Animated Live Whiteboard Preview Simulation */}
-          <div className="lg:col-span-6 relative">
+          <div className="lg:col-span-6 relative w-full max-w-lg mx-auto lg:max-w-none">
             
             {/* Ambient Background Glow */}
             <div className="absolute -inset-4 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-3xl blur-2xl -z-10 animate-pulse-glow" />

@@ -224,6 +224,58 @@
 }
 
 /* ==========================================================================
+   ✨ Infinite Continuous Marquee Carousels
+   ========================================================================== */
+
+@keyframes marquee-scroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes marquee-scroll-reverse {
+  0% {
+    transform: translate3d(-50%, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-marquee-infinite {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll var(--marquee-duration, 35s) linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-reverse-infinite {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll-reverse var(--marquee-duration, 35s) linear infinite;
+  will-change: transform;
+}
+
+.pause-on-hover:hover .animate-marquee-infinite,
+.pause-on-hover:hover .animate-marquee-reverse-infinite {
+  animation-play-state: paused !important;
+}
+
+/* Horizontal Edge Fade Gradient Masks for Infinite Carousels */
+.carousel-mask-fade {
+  mask-image: linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%);
+}
+
+.carousel-mask-fade-wide {
+  mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+}
+
+/* ==========================================================================
    ♿ WCAG 2.1 AA Accessibility & High Contrast Styles
    ========================================================================== */
 

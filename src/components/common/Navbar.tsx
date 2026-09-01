@@ -294,8 +294,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLogin, onOpenRegister, onO
               </div>
             )}
 
-            {/* Direct Mobile Quick Launch Pills (Always Visible on Mobile) */}
-            <div className="flex md:hidden items-center gap-1.5">
+            {/* Direct Mobile Quick Launch Pills (Visible on tablet/sm screens) */}
+            <div className="hidden sm:flex md:hidden items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => navigateTo('landing')}
